@@ -1,0 +1,76 @@
+{
+  "name": "wj",
+  "private": true,
+  "version": "2.0.5",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hhf20/gunpla-manager.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "test:supabase": "node ./scripts/test-supabase.mjs",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "vite --host 127.0.0.1 --port 5173 & electron .",
+    "dist:win": "npm run build && electron-builder --win nsis"
+  },
+  "main": "electron/main.js",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.1",
+    "electron-updater": "^6.6.2",
+    "pdfjs-dist": "^5.6.205",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "electron": "^37.6.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.17",
+    "vite": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.gunpla.manager",
+    "productName": "Gunpla Manager",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hhf20",
+        "repo": "gunpla-manager"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

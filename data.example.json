@@ -1,0 +1,20 @@
+{
+  "gunplaList": [],
+  "categoryConfig": {
+    "grade": ["HG", "RG", "MG", "PG", "RE100"],
+    "series": ["SEED", "UC", "OO"],
+    "customTags": ["PB限定", "透明版", "电镀版"],
+    "releaseTypes": ["通贩", "PB限定", "基地限定"],
+    "purchasePlatforms": ["淘宝", "拼多多", "Amazon", "实体店"]
+  },
+  "buildStatusConfig": ["未开盒", "素组", "渗线", "水贴", "喷涂", "完成"],
+  "filterState": {
+    "searchText": "",
+    "grades": [],
+    "status": [],
+    "buildStatuses": [],
+    "series": [],
+    "tags": [],
+    "type": "all"
+  }
+}
