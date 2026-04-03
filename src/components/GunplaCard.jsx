@@ -49,7 +49,8 @@ function buildDisplayTitle(item) {
   return parts.length > 0 ? parts.join(' ') : '未命名模型'
 }
 
-function GunplaCard({ item, onOpen = null }) {
+function GunplaCard({ item, onOpen = null, variant = 'default' }) {
+  const isMobileCard = variant === 'mobile'
   const { openDetail } = useGunpla()
   const navigate = useNavigate()
   const isWishlist = item.type === 'wishlist'
@@ -72,15 +73,20 @@ function GunplaCard({ item, onOpen = null }) {
     else openDetail(item.id)
   }
 
+  const articleClass = [
+    'group app-panel relative cursor-pointer overflow-hidden rounded-[28px] transition duration-300',
+    isMobileCard
+      ? 'border border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.35)] active:scale-[0.99] active:opacity-[0.97]'
+      : [
+          'hover:-translate-y-1',
+          isWishlist
+            ? 'border-amber-400/35 shadow-[0_18px_44px_rgba(245,158,11,0.14)]'
+            : 'hover:shadow-[0_24px_56px_rgba(0,0,0,0.28)]',
+        ].join(' '),
+  ].join(' ')
+
   return (
-    <article
-      onClick={handleOpen}
-      className={`group app-panel relative cursor-pointer overflow-hidden rounded-[28px] transition duration-300 hover:-translate-y-1 ${
-        isWishlist
-          ? 'border-amber-400/35 shadow-[0_18px_44px_rgba(245,158,11,0.14)]'
-          : 'hover:shadow-[0_24px_56px_rgba(0,0,0,0.28)]'
-      }`}
-    >
+    <article onClick={handleOpen} className={articleClass}>
       <div className="relative overflow-hidden bg-slate-950/85">
         {item.coverImage ? (
           <img
@@ -192,26 +198,30 @@ function GunplaCard({ item, onOpen = null }) {
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end gap-2 p-4 opacity-0 transition duration-300 group-hover:opacity-100">
-        <button
-          onClick={(event) => {
-            event.stopPropagation()
-            openDetail(item.id)
-          }}
-          className="app-btn-secondary pointer-events-auto !rounded-xl !px-3 !py-2 !text-xs"
-        >
-          查看详情
-        </button>
-        <button
-          onClick={(event) => {
-            event.stopPropagation()
-            navigate(`/edit/${item.id}`)
-          }}
-          className="app-btn-primary pointer-events-auto !rounded-xl !px-3 !py-2 !text-xs"
-        >
-          编辑
-        </button>
-      </div>
+      {!isMobileCard ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end gap-2 p-4 opacity-0 transition duration-300 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              openDetail(item.id)
+            }}
+            className="app-btn-secondary pointer-events-auto !rounded-xl !px-3 !py-2 !text-xs"
+          >
+            查看详情
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigate(`/edit/${item.id}`)
+            }}
+            className="app-btn-primary pointer-events-auto !rounded-xl !px-3 !py-2 !text-xs"
+          >
+            编辑
+          </button>
+        </div>
+      ) : null}
     </article>
   )
 }

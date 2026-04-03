@@ -34,21 +34,48 @@ function MobileStatsPage() {
     }
   }, [gunplaList])
 
-  const renderMap = (title, mapObj) => (
-    <section className="app-panel rounded-[26px] p-4">
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {Object.entries(mapObj).map(([key, value]) => (
-          <span key={key} className="app-chip">
-            {key} · {value}
-          </span>
-        ))}
-      </div>
-    </section>
-  )
+  const renderMap = (title, mapObj) => {
+    const entries = Object.entries(mapObj).sort((a, b) => b[1] - a[1])
+    return (
+      <section className="app-panel rounded-[26px] p-4">
+        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {entries.length === 0 ? (
+            <span className="text-xs text-slate-500">暂无数据</span>
+          ) : (
+            entries.map(([key, value]) => (
+              <span key={key} className="app-chip">
+                {key} · {value}
+              </span>
+            ))
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (stats.total === 0) {
+    return (
+      <main className="px-4 pb-28 pt-4">
+        <div className="app-panel rounded-[28px] px-5 py-10 text-center">
+          <h2 className="text-lg font-semibold text-white">暂无统计数据</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            请先在「藏品」页导入桌面端导出的 JSON 数据包。
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="app-btn-primary mt-6 !rounded-full !px-6 !py-3 !text-sm"
+          >
+            去藏品页
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   return (
-    <main className="px-4 pb-24 pt-4">
+    <main className="px-4 pb-28 pt-4">
       <section className="app-panel-strong rounded-[30px] p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -61,7 +88,7 @@ function MobileStatsPage() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="app-btn-secondary !rounded-full !px-4 !py-2 !text-xs"
+            className="app-btn-secondary shrink-0 !rounded-full !px-4 !py-2 !text-xs"
           >
             返回
           </button>

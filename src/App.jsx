@@ -1,5 +1,4 @@
-import { Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import AddGunplaModal from './components/AddGunplaModal'
 import CoverLibraryModal from './components/CoverLibraryModal'
 import DetailDrawer from './components/DetailDrawer'
@@ -11,6 +10,8 @@ import MainContent from './components/MainContent'
 import MobileDetailPage from './components/MobileDetailPage'
 import MobileHomePage from './components/MobileHomePage'
 import MobileStatsPage from './components/MobileStatsPage'
+import MobileBottomNav from './components/MobileBottomNav'
+import MobileFilterDrawer from './components/MobileFilterDrawer'
 import StatsModal from './components/StatsModal'
 import ThemeBackground from './components/ThemeBackground'
 import TypeManagementModal from './components/TypeManagementModal'
@@ -37,6 +38,10 @@ function DesktopLayout() {
 }
 
 function MobileLayout() {
+  const location = useLocation()
+  const hideBottomNav = location.pathname.startsWith('/model/')
+  const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
+
   return (
     <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
       <Routes>
@@ -44,6 +49,11 @@ function MobileLayout() {
         <Route path="/model/:id" element={<MobileDetailPage />} />
         <Route path="/stats" element={<MobileStatsPage />} />
       </Routes>
+      {!hideBottomNav ? <MobileBottomNav /> : null}
+      <MobileFilterDrawer
+        isOpen={isMobileFilterDrawerOpen}
+        onClose={() => setMobileFilterDrawerOpen(false)}
+      />
     </div>
   )
 }

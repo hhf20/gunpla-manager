@@ -40,19 +40,19 @@ function Header() {
   const [updateReady, setUpdateReady] = useState(false)
   const mobileWebUrl = getMobileWebUrlOrPlaceholder()
 
-  const showPortableExportMessage = () => {
-    exportPortableData()
+  const showPortableExportMessage = async () => {
+    await exportPortableData()
     window.alert(
       hasConfiguredMobileWebUrl()
         ? `已导出移动端数据包。请让用户在手机浏览器打开 ${mobileWebUrl} 后导入 JSON 文件。`
-        : `已导出移动端数据包。发布 Vercel 后，请把 VITE_MOBILE_WEB_URL 配置为正式地址，例如 ${mobileWebUrl}。`,
+        : `已导出移动端数据包。部署 GitHub Pages 或本地构建前，请把 VITE_MOBILE_WEB_URL 配置为正式地址，例如 ${mobileWebUrl}。`,
     )
   }
 
   const openMobileWeb = async () => {
     if (!hasConfiguredMobileWebUrl()) {
       window.alert(
-        `移动端网址尚未配置。请先在 .env 或 Vercel 环境变量中填写 VITE_MOBILE_WEB_URL，例如：${mobileWebUrl}`,
+        `移动端网址尚未配置。请先在 .env 或 CI 环境变量中填写 VITE_MOBILE_WEB_URL，例如：${mobileWebUrl}`,
       )
       return
     }

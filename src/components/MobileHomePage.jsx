@@ -1,12 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import GunplaCard from './GunplaCard'
-import MobileFilterDrawer from './MobileFilterDrawer'
 import { useGunpla } from '../context/GunplaContext'
 
 function MobileHomePage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const {
     filteredGunplaList,
     gunplaList,
@@ -15,10 +13,10 @@ function MobileHomePage() {
     resetFilter,
     importPortableData,
     platformCapabilities,
+    setMobileFilterDrawerOpen,
   } = useGunpla()
 
   const fileInputRef = useRef(null)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [importState, setImportState] = useState({ type: 'idle', message: '' })
   const accessUrl =
     typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : ''
@@ -42,12 +40,6 @@ function MobileHomePage() {
     { key: 'all', label: '全部', count: filteredGunplaList.length },
     { key: 'owned', label: '我的收藏', count: ownedCount },
     { key: 'wishlist', label: '愿望清单', count: wishlistCount },
-  ]
-
-  const navItems = [
-    { label: '藏品', path: '/', active: location.pathname === '/' },
-    { label: '统计', path: '/stats', active: location.pathname === '/stats' },
-    { label: `筛选${filterCount > 0 ? ` ${filterCount}` : ''}`, action: () => setFiltersOpen(true), active: filtersOpen || filterCount > 0 },
   ]
 
   const handleImportClick = () => {
@@ -80,14 +72,15 @@ function MobileHomePage() {
     if (!hasImportedData) {
       return (
         <div className="app-panel rounded-[28px] px-5 py-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-lg text-cyan-100">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-lg font-semibold text-cyan-100">
             GM
-            {accessUrl ? (
-              <span className="rounded-full border border-cyan-300/15 bg-cyan-400/10 px-3 py-2 text-[11px] text-cyan-100">
-                当前移动端入口：{accessUrl}
-              </span>
-            ) : null}
           </div>
+          {accessUrl ? (
+            <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-left">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-200/75">当前入口</div>
+              <div className="mt-2 break-all text-xs leading-relaxed text-cyan-50/95">{accessUrl}</div>
+            </div>
+          ) : null}
           <h3 className="mt-4 text-lg font-semibold text-white">先导入桌面端数据包</h3>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             移动端首版以只读浏览为主。先在桌面端点击“导出到移动端”，再把生成的 JSON 数据包导入到这里。
@@ -184,7 +177,7 @@ function MobileHomePage() {
             />
             <button
               type="button"
-              onClick={() => setFiltersOpen(true)}
+              onClick={() => setMobileFilterDrawerOpen(true)}
               className="app-btn-secondary !rounded-full !px-4 !py-3 !text-sm"
             >
               筛选{filterCount > 0 ? ` ${filterCount}` : ''}
@@ -245,6 +238,7 @@ function MobileHomePage() {
                 <GunplaCard
                   key={item.id}
                   item={item}
+                  variant="mobile"
                   onOpen={() => navigate(`/model/${item.id}`)}
                 />
               ))}
@@ -258,25 +252,6 @@ function MobileHomePage() {
           className="hidden"
         />
       </main>
-
-      <nav className="app-panel-strong fixed inset-x-0 bottom-0 z-30 mx-4 mb-4 grid grid-cols-3 gap-2 rounded-[26px] p-2">
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onClick={item.action || (() => navigate(item.path))}
-            className={`rounded-[18px] px-3 py-3 text-sm transition ${
-              item.active
-                ? 'bg-cyan-400/18 text-cyan-50 shadow-[0_10px_24px_rgba(34,211,238,0.16)]'
-                : 'text-slate-300'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <MobileFilterDrawer isOpen={filtersOpen} onClose={() => setFiltersOpen(false)} />
     </>
   )
 }

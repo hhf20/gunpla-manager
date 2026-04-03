@@ -97,6 +97,7 @@ export function GunplaProvider({ children }) {
   const [isHydrated, setIsHydrated] = useState(false)
   const [isManualOpen, setIsManualOpen] = useState(false)
   const [manualRootPath, setManualRootPath] = useState(DEFAULT_DATA.manualRootPath || '')
+  const [isMobileFilterDrawerOpen, setMobileFilterDrawerOpen] = useState(false)
 
   const categoryConfig = useMemo(
     () => ({
@@ -446,7 +447,7 @@ export function GunplaProvider({ children }) {
     downloadJsonFile(`gunpla-manager-backup-${timestamp}.json`, data)
   }
 
-  const exportPortableData = () => {
+  const exportPortableData = async () => {
     const cleanPortableUrl = (url) => {
       const value = String(url || '').trim()
       if (!value) return ''
@@ -454,21 +455,39 @@ export function GunplaProvider({ children }) {
       return ''
     }
 
+    const toPortableImageUrl = async (url) => {
+      const cleaned = cleanPortableUrl(url)
+      if (cleaned) return cleaned
+
+      const value = String(url || '').trim()
+      if (!value || !value.startsWith('file://') || !window.api?.readImageBuffer) return ''
+
+      try {
+        const result = await window.api.readImageBuffer(value)
+        if (!result?.ok || !result?.base64) return ''
+        const ext = String(result.ext || '.png').replace(/^\./, '').toLowerCase()
+        const mime = ext === 'jpg' ? 'jpeg' : ext
+        return `data:image/${mime};base64,${result.base64}`
+      } catch {
+        return ''
+      }
+    }
+
     const data = {
-      gunplaList: gunplaList.map((item) => ({
-        ...item,
-        coverImage: cleanPortableUrl(item.coverImage),
-        buildImages: Array.isArray(item.buildImages)
-          ? item.buildImages.map(cleanPortableUrl).filter(Boolean)
-          : [],
-        boxImages: Array.isArray(item.boxImages)
-          ? item.boxImages.map(cleanPortableUrl).filter(Boolean)
-          : [],
-      })),
-      coverLibrary: coverLibrary.map((item) => ({
-        ...item,
-        imageUrl: cleanPortableUrl(item.imageUrl),
-      })),
+      gunplaList: await Promise.all(
+        gunplaList.map(async (item) => ({
+          ...item,
+          coverImage: await toPortableImageUrl(item.coverImage),
+          buildImages: [],
+          boxImages: [],
+        })),
+      ),
+      coverLibrary: await Promise.all(
+        coverLibrary.map(async (item) => ({
+          ...item,
+          imageUrl: await toPortableImageUrl(item.imageUrl),
+        })),
+      ),
       configTree,
       categoryConfig,
       buildStatusConfig,
@@ -899,6 +918,8 @@ export function GunplaProvider({ children }) {
         importData,
         importPortableData,
         importExcel,
+        isMobileFilterDrawerOpen,
+        setMobileFilterDrawerOpen,
       }}
     >
       {children}
