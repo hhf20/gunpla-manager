@@ -4,30 +4,43 @@ import {
   fetchGunplaCoverImageFromMain,
   fetchGunplaReleasePriceFromMain,
 } from '../services/releasePriceLookup'
+import {
+  createEmptyGunplaForm,
+  createGunplaFormFromItem,
+  gunplaFormToPayload,
+  ITEM_TYPE_OPTIONS,
+  OWNED_STATUS_OPTIONS,
+  saveImageFilesToLibrary,
+} from '../utils/gunplaForm'
 
-const initialForm = {
-  name: '',
-  type: 'owned',
-  modelCode: '',
-  releasePrice: '',
-  reissuePrice: '',
-  releaseType: '通贩',
-  purchasePlatform: '',
-  buildStatus: '未开盒',
-  series: 'SEED',
-  grade: 'HG',
-  scale: '1/144',
-  purchaseDate: '',
-  purchasePrice: '',
-  purchaseCount: 1,
-  expectedPrice: '',
-  currentPrice: '',
-  status: '未拼装',
-  tags: '',
-  note: '',
-  coverImage: '',
-  buildImages: [],
-  boxImages: [],
+const inputClass = 'app-input !rounded-2xl !py-2.5'
+const sectionClass = 'rounded-[26px] border border-white/10 bg-black/10 p-4 md:p-5'
+
+function ImageGrid({ images, onRemove }) {
+  if (!images.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-slate-500">
+        暂无图片
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {images.map((img, index) => (
+        <div key={`${img}-${index}`} className="group relative overflow-hidden rounded-2xl bg-slate-950/70">
+          <img src={img} alt="" className="h-24 w-full object-contain" />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="absolute right-2 top-2 rounded-lg bg-black/65 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100"
+          >
+            删除
+          </button>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function AddGunplaModal() {
@@ -38,10 +51,15 @@ function AddGunplaModal() {
     updateGunpla,
     closeModal,
     categoryConfig,
-    buildStatusConfig,
+    getConfigSelectOptions,
     openCoverLibrary,
   } = useGunpla()
-  const [form, setForm] = useState(initialForm)
+  const [form, setForm] = useState(() =>
+    createEmptyGunplaForm({
+      defaultReleaseType: categoryConfig.releaseTypes?.[0] || '通贩',
+      defaultPlatform: categoryConfig.purchasePlatforms?.[0] || '',
+    }),
+  )
   const [releasePriceLookupBusy, setReleasePriceLookupBusy] = useState(false)
   const [coverImageLookupBusy, setCoverImageLookupBusy] = useState(false)
   const coverInputRef = useRef(null)
@@ -49,45 +67,45 @@ function AddGunplaModal() {
   const boxInputRef = useRef(null)
 
   const isEditing = useMemo(() => Boolean(editingGunpla), [editingGunpla])
+  const seriesOptions = useMemo(() => getConfigSelectOptions('series'), [getConfigSelectOptions])
+  const gradeOptions = useMemo(() => getConfigSelectOptions('grade'), [getConfigSelectOptions])
+  const releaseTypeOptions = useMemo(
+    () => getConfigSelectOptions('releaseTypes'),
+    [getConfigSelectOptions],
+  )
+  const platformOptions = useMemo(
+    () => getConfigSelectOptions('purchasePlatforms'),
+    [getConfigSelectOptions],
+  )
+  const buildStatusOptions = useMemo(
+    () => getConfigSelectOptions('buildStatusConfig'),
+    [getConfigSelectOptions],
+  )
 
   useEffect(() => {
     if (!isModalOpen) return
-    if (!editingGunpla) {
-      setForm(initialForm)
-      return
+    const defaults = {
+      defaultReleaseType: releaseTypeOptions[0]?.value || categoryConfig.releaseTypes?.[0] || '通贩',
+      defaultPlatform: platformOptions[0]?.value || categoryConfig.purchasePlatforms?.[0] || '',
     }
+    const next = editingGunpla
+      ? createGunplaFormFromItem(editingGunpla, defaults)
+      : createEmptyGunplaForm(defaults)
 
-    setForm({
-      name: editingGunpla.name || '',
-      type: editingGunpla.type || 'owned',
-      modelCode: editingGunpla.modelCode || '',
-      releasePrice: editingGunpla.releasePrice ?? '',
-      reissuePrice: editingGunpla.reissuePrice ?? '',
-      releaseType:
-        editingGunpla.releaseType || categoryConfig.releaseTypes?.[0] || '通贩',
-      purchasePlatform:
-        editingGunpla.purchasePlatform || categoryConfig.purchasePlatforms?.[0] || '',
-      buildStatus: editingGunpla.buildStatus || '未开盒',
-      series: editingGunpla.series || 'SEED',
-      grade: editingGunpla.grade || 'HG',
-      scale: editingGunpla.scale || '1/144',
-      purchaseDate: editingGunpla.purchaseDate || '',
-      purchasePrice: editingGunpla.purchasePrice ?? '',
-      purchaseCount: editingGunpla.purchaseCount ?? 1,
-      expectedPrice: editingGunpla.expectedPrice ?? '',
-      currentPrice: editingGunpla.currentPrice ?? '',
-      status: editingGunpla.status || '未拼装',
-      tags: Array.isArray(editingGunpla.tags) ? editingGunpla.tags.join(', ') : '',
-      note: editingGunpla.note || '',
-      coverImage: editingGunpla.coverImage || '',
-      buildImages: Array.isArray(editingGunpla.buildImages) ? editingGunpla.buildImages : [],
-      boxImages: Array.isArray(editingGunpla.boxImages) ? editingGunpla.boxImages : [],
-    })
+    if (!next.buildStatus) next.buildStatus = buildStatusOptions[0]?.value || ''
+    if (!next.series) next.series = seriesOptions[0]?.value || ''
+    if (!next.grade) next.grade = gradeOptions[0]?.value || ''
+    setForm(next)
   }, [
     isModalOpen,
     editingGunpla,
-    categoryConfig.releaseTypes,
     categoryConfig.purchasePlatforms,
+    categoryConfig.releaseTypes,
+    buildStatusOptions,
+    gradeOptions,
+    platformOptions,
+    releaseTypeOptions,
+    seriesOptions,
   ])
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
@@ -97,22 +115,23 @@ function AddGunplaModal() {
     const name = form.name.trim()
     const modelCode = form.modelCode.trim()
     if (!name && !modelCode) {
-      window.alert('请先填写名称或模型编号')
+      window.alert('请先填写名称或模型编号。')
       return
     }
+
     setReleasePriceLookupBusy(true)
     try {
-      const res = await fetchGunplaReleasePriceFromMain({
+      const result = await fetchGunplaReleasePriceFromMain({
         name,
         modelCode,
         grade: form.grade,
       })
-      if (res.ok && res.releasePrice != null) {
-        setField('releasePrice', String(res.releasePrice))
-        const src = res.sourceUrl ? `\n来源：${res.sourceUrl}` : ''
-        window.alert(`已填入发售价：${res.releasePrice} 日元（Gunpla Wiki 参考）${src}`)
+      if (result.ok && result.releasePrice != null) {
+        setField('releasePrice', String(result.releasePrice))
+        const sourceLine = result.sourceUrl ? `\n来源：${result.sourceUrl}` : ''
+        window.alert(`已填入发售价：${result.releasePrice} 日元。${sourceLine}`)
       } else {
-        window.alert(res.message || '查询失败')
+        window.alert(result.message || '查询失败。')
       }
     } finally {
       setReleasePriceLookupBusy(false)
@@ -124,452 +143,461 @@ function AddGunplaModal() {
     const name = form.name.trim()
     const modelCode = form.modelCode.trim()
     if (!name && !modelCode) {
-      window.alert('请先填写名称或模型编号')
+      window.alert('请先填写名称或模型编号。')
       return
     }
+
     setCoverImageLookupBusy(true)
     try {
-      const res = await fetchGunplaCoverImageFromMain({
+      const result = await fetchGunplaCoverImageFromMain({
         name,
         modelCode,
         grade: form.grade,
       })
-      if (res.ok && res.imageUrl) {
-        setField('coverImage', res.imageUrl)
-        const src = res.sourceUrl ? `\n条目：${res.sourceUrl}` : ''
-        window.alert(`已从 Gunpla Wiki 下载盒绘并设为封面（已保存到本地资料库目录）。${src}`)
+      if (result.ok && result.imageUrl) {
+        setField('coverImage', result.imageUrl)
+        const sourceLine = result.sourceUrl ? `\n来源：${result.sourceUrl}` : ''
+        window.alert(`已从 Gunpla Wiki 获取盒绘并保存到本地封面库。${sourceLine}`)
       } else {
-        window.alert(res.message || '获取失败')
+        window.alert(result.message || '获取封面失败。')
       }
     } finally {
       setCoverImageLookupBusy(false)
     }
   }
 
-  const saveFiles = async (files) => {
-    const list = Array.from(files || [])
-    const results = await Promise.all(
-      list.map(
-        async (file) => {
-          if (!window.api?.saveImage) return ''
-          const buffer = await file.arrayBuffer()
-          const savedPath = await window.api.saveImage(buffer, file.name)
-          return savedPath || ''
-        },
-      ),
-    )
-    return results.filter(Boolean)
-  }
-
   const handleCoverUpload = async (event) => {
-    const [first] = await saveFiles(event.target.files)
+    const [first] = await saveImageFilesToLibrary(event.target.files)
     if (first) setField('coverImage', first)
   }
+
   const handleMultiUpload = async (key, files) => {
-    const next = await saveFiles(files)
-    if (next.length === 0) return
+    const next = await saveImageFilesToLibrary(files)
+    if (!next.length) return
     setForm((prev) => ({ ...prev, [key]: [...prev[key], ...next] }))
   }
+
   const removeMultiImage = (key, index) => {
     setForm((prev) => ({
       ...prev,
-      [key]: prev[key].filter((_, idx) => idx !== index),
+      [key]: prev[key].filter((_, currentIndex) => currentIndex !== index),
     }))
   }
 
   const handleSave = (event) => {
     event.preventDefault()
-    if (!form.name.trim()) return
-
-    const payload = {
-      name: form.name.trim(),
-      type: form.type,
-      modelCode: form.modelCode.trim(),
-      releasePrice: Number(form.releasePrice) || 0,
-      reissuePrice: Number(form.reissuePrice) || 0,
-      releaseType: form.releaseType,
-      purchasePlatform: form.purchasePlatform.trim(),
-      buildStatus: form.buildStatus,
-      series: form.series,
-      grade: form.grade,
-      scale: form.scale.trim() || '1/144',
-      purchaseDate: form.type === 'owned' ? form.purchaseDate : '',
-      purchasePrice: form.type === 'owned' ? Number(form.purchasePrice) || 0 : 0,
-      purchaseCount:
-        form.type === 'owned'
-          ? Math.max(1, Number(form.purchaseCount) || 1)
-          : Math.max(1, Number(form.purchaseCount) || 1),
-      expectedPrice: form.type === 'wishlist' ? Number(form.expectedPrice) || 0 : 0,
-      currentPrice: Number(form.currentPrice) || 0,
-      status: form.type === 'owned' ? form.status : '',
-      tags: form.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      note: form.note.trim(),
-      coverImage: form.coverImage || '',
-      buildImages: form.buildImages,
-      boxImages: form.boxImages,
+    if (!form.name.trim()) {
+      window.alert('模型名称不能为空。')
+      return
     }
 
-    if (isEditing) {
-      updateGunpla(editingGunpla.id, payload)
-    } else {
-      addGunpla(payload)
-    }
+    const payload = gunplaFormToPayload(form)
+    if (isEditing) updateGunpla(editingGunpla.id, payload)
+    else addGunpla(payload)
     closeModal()
   }
 
   const handleClear = () => {
-    setForm(initialForm)
+    const cleared = createEmptyGunplaForm({
+      defaultReleaseType: releaseTypeOptions[0]?.value || categoryConfig.releaseTypes?.[0] || '通贩',
+      defaultPlatform: platformOptions[0]?.value || categoryConfig.purchasePlatforms?.[0] || '',
+    })
+    cleared.buildStatus = buildStatusOptions[0]?.value || ''
+    cleared.series = seriesOptions[0]?.value || ''
+    cleared.grade = gradeOptions[0]?.value || ''
+    setForm(cleared)
     if (coverInputRef.current) coverInputRef.current.value = ''
     if (buildInputRef.current) buildInputRef.current.value = ''
     if (boxInputRef.current) boxInputRef.current.value = ''
   }
 
+  const desktopOnlyHint = !window.api?.saveImage
+
   return (
     <div
-      className={`fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4 transition duration-300 ${
-        isModalOpen
-          ? 'pointer-events-auto opacity-100'
-          : 'pointer-events-none opacity-0'
+      className={`fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 transition duration-300 ${
+        isModalOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       onClick={closeModal}
     >
       <div
-        className={`flex w-full max-w-[760px] max-h-[90vh] flex-col rounded-2xl bg-zinc-900 p-6 shadow-2xl transition duration-300 ${
+        className={`app-panel-strong relative flex h-[min(92vh,940px)] w-full max-w-[980px] flex-col overflow-hidden rounded-[32px] transition duration-300 ${
           isModalOpen ? 'scale-100' : 'scale-95'
         }`}
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-xl font-semibold text-zinc-100">
-          {isEditing ? '编辑模型' : '新增模型'}
-        </h3>
-        <p className="mt-1 text-sm text-zinc-400">完善信息，打造你的专属机体档案。</p>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,212,255,0.14),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.03),transparent_46%)]" />
 
-        <form className="mt-5 flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
-          <div className="space-y-4 overflow-y-auto pr-1">
-            <section>
-              <h4 className="mb-2 text-sm font-semibold text-zinc-200">基础信息</h4>
-          <div>
-            <p className="mb-2 text-sm text-zinc-300">收藏类型</p>
-            <div className="flex gap-4 text-sm text-zinc-300">
-              {[
-                { label: '已拥有', value: 'owned' },
-                { label: '想购买（愿望清单）', value: 'wishlist' },
-              ].map((typeOption) => (
-                <label key={typeOption.value} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="type"
-                    checked={form.type === typeOption.value}
-                    onChange={() => setField('type', typeOption.value)}
-                    className="accent-blue-500"
-                  />
-                  {typeOption.label}
-                </label>
-              ))}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="border-b border-white/10 px-5 pb-4 pt-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.32em] text-sky-200/70">Collection Entry</div>
+                <h3 className="mt-2 text-2xl font-semibold text-white">{isEditing ? '编辑模型' : '新增模型'}</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  把每台模型整理成一张更清晰的资料卡，录入时也尽量保持轻量和顺手。
+                </p>
+              </div>
+              {desktopOnlyHint ? (
+                <div className="rounded-2xl border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+                  当前是网页环境，图片保存和联网盒绘功能不可用。
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              required
-              value={form.name}
-              onChange={(e) => setField('name', e.target.value)}
-              placeholder="名称"
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            />
-            <input
-              value={form.modelCode}
-              onChange={(e) => setField('modelCode', e.target.value)}
-              placeholder="模型编号（如 ZGMF-X10A）"
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            />
-            <select
-              value={form.series}
-              onChange={(e) => setField('series', e.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            >
-              {categoryConfig.series.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-            <select
-              value={form.grade}
-              onChange={(e) => setField('grade', e.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            >
-              {categoryConfig.grade.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-            <div className="col-span-2 flex min-w-0 flex-wrap items-stretch gap-2">
-              <input
-                type="number"
-                min="0"
-                value={form.releasePrice}
-                onChange={(e) => setField('releasePrice', e.target.value)}
-                placeholder="发售价（初版，日元）"
-                className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-              />
-              <button
-                type="button"
-                onClick={handleLookupReleasePrice}
-                disabled={releasePriceLookupBusy}
-                title="数据来自 Gunpla Wiki，建议用英文品名或「RG + 机体名」以提高命中率"
-                className="shrink-0 rounded-xl border border-blue-600/60 bg-blue-900/40 px-3 py-2 text-sm text-blue-100 transition hover:bg-blue-900/55 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {releasePriceLookupBusy ? '查询中…' : '联网查询'}
-              </button>
-            </div>
-            <input
-              type="number"
-              min="0"
-              value={form.reissuePrice}
-              onChange={(e) => setField('reissuePrice', e.target.value)}
-              placeholder="再版价格（可选，日元）"
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            />
-            <select
-              value={form.releaseType}
-              onChange={(e) => setField('releaseType', e.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            >
-              {categoryConfig.releaseTypes.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-            {categoryConfig.purchasePlatforms?.length > 0 ? (
-              <select
-                value={form.purchasePlatform}
-                onChange={(e) => setField('purchasePlatform', e.target.value)}
-                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500 col-span-2"
-              >
-                {categoryConfig.purchasePlatforms.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            ) : null}
-            <select
-              value={form.buildStatus}
-              onChange={(e) => setField('buildStatus', e.target.value)}
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500 col-span-2"
-            >
-              {buildStatusConfig.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-            <input
-              value={form.scale}
-              onChange={(e) => setField('scale', e.target.value)}
-              placeholder="比例，例如 1/100"
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-            />
-            {form.type === 'owned' ? (
-              <>
-                <input
-                  type="date"
-                  value={form.purchaseDate}
-                  onChange={(e) => setField('purchaseDate', e.target.value)}
-                  className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  value={form.purchasePrice}
-                  onChange={(e) => setField('purchasePrice', e.target.value)}
-                  placeholder="购买价格"
-                  className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={form.purchaseCount}
-                  onChange={(e) => setField('purchaseCount', e.target.value)}
-                  placeholder="购买次数"
-                  className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                />
-              </>
-            ) : (
-              <input
-                type="number"
-                min="0"
-                value={form.expectedPrice}
-                onChange={(e) => setField('expectedPrice', e.target.value)}
-                placeholder="期望价格"
-                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500 col-span-2"
-              />
-            )}
-            <input
-              type="number"
-              min="0"
-              value={form.currentPrice}
-              onChange={(e) => setField('currentPrice', e.target.value)}
-              placeholder="当前价格"
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500 col-span-2"
-            />
-          </div>
-            </section>
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <div className="space-y-5">
+                <section className={sectionClass}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Profile</div>
+                      <h4 className="mt-1 text-base font-semibold text-white">基础信息</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {ITEM_TYPE_OPTIONS.map((option) => (
+                        <label
+                          key={option.value}
+                          className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${
+                            form.type === option.value
+                              ? 'border-cyan-300/30 bg-cyan-400/15 text-cyan-100'
+                              : 'border-white/10 bg-white/[0.03] text-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="type"
+                            checked={form.type === option.value}
+                            onChange={() => setField('type', option.value)}
+                            className="h-4 w-4 accent-cyan-400"
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-          {form.type === 'owned' ? (
-            <div>
-              <p className="mb-2 text-sm text-zinc-300">状态</p>
-              <div className="flex gap-4 text-sm text-zinc-300">
-                {['未拼装', '已拼装', '已涂装'].map((status) => (
-                  <label key={status} className="flex items-center gap-2">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <select
+                      value={form.grade}
+                      onChange={(event) => setField('grade', event.target.value)}
+                      className={inputClass}
+                    >
+                      {gradeOptions.map((item) => (
+                        <option key={item.id} value={item.value}>
+                          {item.path}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={form.series}
+                      onChange={(event) => setField('series', event.target.value)}
+                      className={inputClass}
+                    >
+                      {seriesOptions.map((item) => (
+                        <option key={item.id} value={item.value}>
+                          {item.path}
+                        </option>
+                      ))}
+                    </select>
                     <input
-                      type="radio"
-                      name="status"
-                      checked={form.status === status}
-                      onChange={() => setField('status', status)}
-                      className="accent-blue-500"
+                      value={form.scale}
+                      onChange={(event) => setField('scale', event.target.value)}
+                      placeholder="比例，例如 1/144"
+                      className={inputClass}
                     />
-                    {status}
-                  </label>
-                ))}
+                    <input
+                      value={form.boxNumber}
+                      onChange={(event) => setField('boxNumber', event.target.value)}
+                      placeholder="盒子编号，例如 40"
+                      className={inputClass}
+                    />
+                    <input
+                      value={form.modelCode}
+                      onChange={(event) => setField('modelCode', event.target.value)}
+                      placeholder="机体编号，例如 RX-78-2"
+                      className={inputClass}
+                    />
+                    <input
+                      required
+                      value={form.name}
+                      onChange={(event) => setField('name', event.target.value)}
+                      placeholder="机体名称"
+                      className={inputClass}
+                    />
+                    <select
+                      value={form.buildStatus}
+                      onChange={(event) => setField('buildStatus', event.target.value)}
+                      className={inputClass}
+                    >
+                      {buildStatusOptions.map((item) => (
+                        <option key={item.id} value={item.value}>
+                          {item.path}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </section>
+
+                <section className={sectionClass}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Market</div>
+                      <h4 className="mt-1 text-base font-semibold text-white">价格与渠道</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLookupReleasePrice}
+                      disabled={releasePriceLookupBusy}
+                      className="app-btn-secondary !rounded-full !px-4 !py-2 !text-xs"
+                    >
+                      {releasePriceLookupBusy ? '查询中...' : '联网查询发售价'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.releasePrice}
+                      onChange={(event) => setField('releasePrice', event.target.value)}
+                      placeholder="发售价（日元）"
+                      className={inputClass}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.reissuePrice}
+                      onChange={(event) => setField('reissuePrice', event.target.value)}
+                      placeholder="再版价格（可选）"
+                      className={inputClass}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.currentPrice}
+                      onChange={(event) => setField('currentPrice', event.target.value)}
+                      placeholder="当前价（次要信息）"
+                      className={inputClass}
+                    />
+
+                    <select
+                      value={form.releaseType}
+                      onChange={(event) => setField('releaseType', event.target.value)}
+                      className={inputClass}
+                    >
+                      {releaseTypeOptions.map((item) => (
+                        <option key={item.id} value={item.value}>
+                          {item.path}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={form.purchasePlatform}
+                      onChange={(event) => setField('purchasePlatform', event.target.value)}
+                      className={inputClass}
+                    >
+                      {platformOptions.map((item) => (
+                        <option key={item.id} value={item.value}>
+                          {item.path}
+                        </option>
+                      ))}
+                    </select>
+
+                    {form.type === 'owned' ? (
+                      <>
+                        <input
+                          type="date"
+                          value={form.purchaseDate}
+                          onChange={(event) => setField('purchaseDate', event.target.value)}
+                          className={inputClass}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.purchasePrice}
+                          onChange={(event) => setField('purchasePrice', event.target.value)}
+                          placeholder="实际入手价"
+                          className={inputClass}
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={form.purchaseCount}
+                          onChange={(event) => setField('purchaseCount', event.target.value)}
+                          placeholder="购入数量"
+                          className={inputClass}
+                        />
+                        <select
+                          value={form.status}
+                          onChange={(event) => setField('status', event.target.value)}
+                          className={`${inputClass} md:col-span-2 xl:col-span-1`}
+                        >
+                          {OWNED_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.expectedPrice}
+                        onChange={(event) => setField('expectedPrice', event.target.value)}
+                        placeholder="目标入手价"
+                        className={`${inputClass} md:col-span-2 xl:col-span-2`}
+                      />
+                    )}
+                  </div>
+                </section>
+
+                <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className={sectionClass}>
+                    <div className="mb-4">
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Notes</div>
+                      <h4 className="mt-1 text-base font-semibold text-white">标签与备注</h4>
+                    </div>
+                    <div className="space-y-4">
+                      <input
+                        value={form.tags}
+                        onChange={(event) => setField('tags', event.target.value)}
+                        placeholder="标签，多个用逗号分隔"
+                        className={inputClass}
+                      />
+                      <textarea
+                        value={form.note}
+                        onChange={(event) => setField('note', event.target.value)}
+                        rows={6}
+                        placeholder="记录版本差异、购入缘由、改造计划等备注"
+                        className={`${inputClass} min-h-[144px] resize-none`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={sectionClass}>
+                    <div className="mb-4">
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Cover</div>
+                      <h4 className="mt-1 text-base font-semibold text-white">封面主图</h4>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openCoverLibrary('select', (cover) => {
+                              if (cover?.imageUrl) setField('coverImage', cover.imageUrl)
+                            })
+                          }
+                          className="app-btn-secondary !rounded-full !px-4 !py-2 !text-xs"
+                        >
+                          从封面库选择
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLookupCoverImage}
+                          disabled={coverImageLookupBusy || !window.api?.fetchGunplaCoverImage}
+                          className="app-btn-secondary !rounded-full !px-4 !py-2 !text-xs"
+                        >
+                          {coverImageLookupBusy ? '获取中...' : '联网获取盒绘'}
+                        </button>
+                      </div>
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCoverUpload}
+                        disabled={!window.api?.saveImage}
+                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                      />
+                      <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60">
+                        {form.coverImage ? (
+                          <img
+                            src={form.coverImage}
+                            alt="封面预览"
+                            className="h-56 w-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-56 items-center justify-center text-sm text-slate-500">
+                            暂无封面
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={sectionClass}>
+                  <div className="mb-4">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Gallery</div>
+                    <h4 className="mt-1 text-base font-semibold text-white">附加图片</h4>
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-2">
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-sm font-medium text-slate-100">成品图</div>
+                        <div className="text-xs text-slate-500">可以上传多张，用来展示完成状态。</div>
+                      </div>
+                      <input
+                        ref={buildInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={(event) => handleMultiUpload('buildImages', event.target.files)}
+                        disabled={!window.api?.saveImage}
+                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                      />
+                      <ImageGrid
+                        images={form.buildImages}
+                        onRemove={(index) => removeMultiImage('buildImages', index)}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-sm font-medium text-slate-100">盒照</div>
+                        <div className="text-xs text-slate-500">保留包装图，方便版本核对和收纳管理。</div>
+                      </div>
+                      <input
+                        ref={boxInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={(event) => handleMultiUpload('boxImages', event.target.files)}
+                        disabled={!window.api?.saveImage}
+                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                      />
+                      <ImageGrid
+                        images={form.boxImages}
+                        onRemove={(index) => removeMultiImage('boxImages', index)}
+                      />
+                    </div>
+                  </div>
+                </section>
               </div>
             </div>
-          ) : null}
 
-          <input
-            value={form.tags}
-            onChange={(e) => setField('tags', e.target.value)}
-            placeholder="标签（逗号分隔）"
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-          />
-
-          <textarea
-            value={form.note}
-            onChange={(e) => setField('note', e.target.value)}
-            rows={3}
-            placeholder="备注"
-            className="w-full resize-none rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-          />
-
-          <div className="rounded-xl border border-dashed border-zinc-700 p-3 space-y-3">
-            <label className="block text-sm text-zinc-300">封面图</label>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  openCoverLibrary('select', (cover) => {
-                    if (cover?.imageUrl) setField('coverImage', cover.imageUrl)
-                  })
-                }
-                className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700"
-              >
-                从资料库选择
-              </button>
-              <button
-                type="button"
-                onClick={handleLookupCoverImage}
-                disabled={coverImageLookupBusy}
-                title="从 Gunpla Wiki 下载盒绘到本地（建议用「等级 + 英文机体名」）"
-                className="rounded-xl border border-emerald-700/60 bg-emerald-950/50 px-4 py-2 text-sm text-emerald-100 transition hover:bg-emerald-900/40 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {coverImageLookupBusy ? '下载中…' : '联网获取封面'}
-              </button>
-              <span className="text-xs text-zinc-500">或上传本地图片</span>
-            </div>
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleCoverUpload}
-              className="mt-2 block w-full text-xs text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-zinc-100 hover:file:bg-zinc-600"
-            />
-            {form.coverImage ? (
-              <img
-                src={form.coverImage}
-                alt="preview"
-                className="mt-3 w-24 max-h-24 h-auto rounded-lg object-contain bg-zinc-800"
-              />
-            ) : null}
-
-            <label className="block text-sm text-zinc-300">成品图（可多选）</label>
-            <input
-              ref={buildInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(event) => handleMultiUpload('buildImages', event.target.files)}
-              className="block w-full text-xs text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-zinc-100 hover:file:bg-zinc-600"
-            />
-            <div className="grid grid-cols-4 gap-2">
-              {form.buildImages.map((img, idx) => (
-                <div key={`${img}-${idx}`} className="relative group overflow-hidden">
-                  <img
-                    src={img}
-                    alt=""
-                    className="w-full h-auto max-h-16 rounded-md object-contain bg-zinc-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeMultiImage('buildImages', idx)}
-                    className="absolute right-1 top-1 rounded bg-black/60 px-1 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                  >
-                    x
+            <div className="border-t border-white/10 px-5 py-4">
+              <div className="flex flex-wrap justify-end gap-2">
+                {!isEditing ? (
+                  <button type="button" onClick={handleClear} className="app-btn-secondary">
+                    清空
                   </button>
-                </div>
-              ))}
+                ) : null}
+                <button type="button" onClick={closeModal} className="app-btn-secondary">
+                  取消
+                </button>
+                <button type="submit" className="app-btn-primary">
+                  {isEditing ? '保存修改' : '保存模型'}
+                </button>
+              </div>
             </div>
-
-            <label className="block text-sm text-zinc-300">盒照（可多选）</label>
-            <input
-              ref={boxInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(event) => handleMultiUpload('boxImages', event.target.files)}
-              className="block w-full text-xs text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-zinc-100 hover:file:bg-zinc-600"
-            />
-            <div className="grid grid-cols-4 gap-2">
-              {form.boxImages.map((img, idx) => (
-                <div key={`${img}-${idx}`} className="relative group overflow-hidden">
-                  <img
-                    src={img}
-                    alt=""
-                    className="w-full h-auto max-h-16 rounded-md object-contain bg-zinc-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeMultiImage('boxImages', idx)}
-                    className="absolute right-1 top-1 rounded bg-black/60 px-1 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          </div>
-          <div className="mt-4 flex justify-end gap-2 border-t border-zinc-800 pt-3">
-            {!isEditing ? (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700"
-              >
-                清空
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={closeModal}
-              className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-zinc-200 transition hover:bg-zinc-700"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-400"
-            >
-              保存
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   )

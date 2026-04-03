@@ -2,15 +2,152 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
+@layer base {
+  :root {
+    color-scheme: dark;
+    --bg-0: #07111f;
+    --bg-1: #0d1a2b;
+    --bg-2: #13243a;
+    --panel: rgba(10, 20, 34, 0.78);
+    --panel-strong: rgba(8, 16, 29, 0.9);
+    --panel-soft: rgba(18, 31, 51, 0.72);
+    --line: rgba(132, 160, 193, 0.2);
+    --line-strong: rgba(132, 160, 193, 0.34);
+    --text-0: #f7fbff;
+    --text-1: #d7e2f1;
+    --text-2: #8fa4bf;
+    --brand: #67d4ff;
+    --brand-strong: #2bb1e6;
+    --brand-soft: rgba(103, 212, 255, 0.15);
+    --warn: #ffd36e;
+    --danger: #ff7b7b;
+    --success: #5dd39e;
+    --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.38);
+    --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.24);
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family:
+      'Noto Sans SC',
+      'PingFang SC',
+      'Microsoft YaHei',
+      'Segoe UI',
+      sans-serif;
+    color: var(--text-0);
+    background:
+      radial-gradient(circle at top left, rgba(63, 146, 229, 0.16), transparent 34%),
+      radial-gradient(circle at top right, rgba(103, 212, 255, 0.12), transparent 28%),
+      linear-gradient(135deg, var(--bg-0), var(--bg-1) 45%, var(--bg-2));
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgba(103, 212, 255, 0.65);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgba(103, 212, 255, 0.25);
+    color: var(--text-0);
+  }
 }
 
-body {
-  margin: 0;
-  font-family: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: rgb(9 9 11);
-  color: rgb(244 244 245);
+@layer components {
+  .app-shell {
+    @apply relative z-10 min-h-screen;
+  }
+
+  .app-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(18px);
+  }
+
+  .app-panel-strong {
+    background: var(--panel-strong);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(22px);
+  }
+
+  .app-chip {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition;
+    background: rgba(143, 164, 191, 0.12);
+    color: var(--text-1);
+    border: 1px solid rgba(143, 164, 191, 0.16);
+  }
+
+  .app-chip:hover {
+    background: rgba(143, 164, 191, 0.2);
+  }
+
+  .app-btn {
+    @apply inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-medium transition;
+    border: 1px solid transparent;
+  }
+
+  .app-btn-primary {
+    @apply app-btn text-white;
+    background: linear-gradient(135deg, var(--brand-strong), #1d7dbe);
+    box-shadow: 0 10px 24px rgba(43, 177, 230, 0.26);
+  }
+
+  .app-btn-primary:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+  }
+
+  .app-btn-secondary {
+    @apply app-btn;
+    color: var(--text-1);
+    background: rgba(143, 164, 191, 0.1);
+    border-color: rgba(143, 164, 191, 0.16);
+  }
+
+  .app-btn-secondary:hover {
+    background: rgba(143, 164, 191, 0.18);
+    border-color: rgba(143, 164, 191, 0.28);
+  }
+
+  .app-input {
+    @apply w-full rounded-2xl px-4 py-3 text-sm;
+    color: var(--text-0);
+    background: rgba(7, 17, 31, 0.64);
+    border: 1px solid rgba(132, 160, 193, 0.18);
+  }
+
+  .app-input::placeholder {
+    color: rgba(143, 164, 191, 0.8);
+  }
+
+  .app-input:focus {
+    border-color: rgba(103, 212, 255, 0.5);
+    box-shadow: 0 0 0 4px rgba(103, 212, 255, 0.08);
+  }
+
+  .app-section-title {
+    @apply mb-3 text-xs font-semibold uppercase tracking-[0.24em];
+    color: var(--text-2);
+  }
 }

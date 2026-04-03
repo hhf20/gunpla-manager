@@ -8,9 +8,11 @@ contextBridge.exposeInMainWorld('api', {
   readImageBuffer: (fileUrl) => ipcRenderer.invoke('read-image-buffer', fileUrl),
   logRenderer: (level, message) => ipcRenderer.invoke('log-renderer', level, message),
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
   checkForUpdates: () => ipcRenderer.invoke('update-check'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('update-quit-and-install'),
+  wipeAllData: () => ipcRenderer.invoke('wipe-user-data'),
   onUpdateEvent: (handler) => {
     if (typeof handler !== 'function') return () => {}
     const listener = (_event, payload) => handler(payload)

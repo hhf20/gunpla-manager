@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import updater from 'electron-updater'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,10 +8,13 @@ import {
   lookupGunplaReleasePrice,
 } from './releasePriceProviders/gunplaFandom.js'
 
+const { autoUpdater } = updater
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const isDev = !app.isPackaged
+const WIPE_ON_RELAUNCH_FLAG = '--wipe-user-data-on-launch'
 const userDataDir = app.getPath('userData')
 const dataDir = path.join(userDataDir, 'data')
 const imagesDir = path.join(dataDir, 'images')
@@ -23,17 +26,26 @@ const rendererLogPath = path.join(logsDir, 'renderer.log')
 /** @type {BrowserWindow | null} */
 let mainWindow = null
 
+async function safeRm(targetPath) {
+  try {
+    await fs.rm(targetPath, { recursive: true, force: true })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, message: e?.message || String(e) }
+  }
+}
+
 const DEFAULT_DATA = {
   gunplaList: [],
   coverLibrary: [],
   categoryConfig: {
     grade: ['HG', 'RG', 'MG', 'PG', 'RE100'],
     series: ['SEED', 'UC', 'OO'],
-    customTags: ['PB限定', '透明版', '电镀版'],
-    releaseTypes: ['通贩', 'PB限定', '基地限定'],
-    purchasePlatforms: ['淘宝', '拼多多', 'Amazon', '实体店'],
+    customTags: ['\u0050\u0042\u9650\u5b9a', '\u900f\u660e\u4ef6', '\u7535\u9540\u4ef6'],
+    releaseTypes: ['\u666e\u901a', '\u0050\u0042\u9650\u5b9a', '\u57fa\u5730\u9650\u5b9a'],
+    purchasePlatforms: ['\u6dd8\u5b9d', '\u62fc\u591a\u591a', 'Amazon', '\u5b9e\u4f53\u5e97'],
   },
-  buildStatusConfig: ['未开盒', '素组', '渗线', '水贴', '喷涂', '完成'],
+  buildStatusConfig: ['\u672a\u5f00\u76d2', '\u7d20\u7ec4', '\u6e17\u7ebf', '\u6c34\u8d34', '\u55b7\u6d82', '\u5b8c\u6210'],
   filterState: {
     searchText: '',
     grades: [],
@@ -106,6 +118,27 @@ async function ensureStorage() {
   } catch {
     await fs.writeFile(dataFilePath, JSON.stringify(DEFAULT_DATA, null, 2), 'utf-8')
   }
+}
+
+async function wipeUserDataDirectories() {
+  const targets = [
+    dataDir,
+    logsDir,
+    path.join(userDataDir, 'Cache'),
+    path.join(userDataDir, 'Code Cache'),
+    path.join(userDataDir, 'GPUCache'),
+    path.join(userDataDir, 'Local Storage'),
+    path.join(userDataDir, 'Session Storage'),
+    path.join(userDataDir, 'IndexedDB'),
+  ]
+
+  const errors = []
+  for (const targetPath of targets) {
+    const res = await safeRm(targetPath)
+    if (!res.ok) errors.push({ path: targetPath, message: res.message })
+  }
+
+  return errors
 }
 
 async function appendLog(filePath, level, message) {
@@ -236,6 +269,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 920,
+    title: '金屋藏胶 / Gunpla Manager',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -247,7 +281,20 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    const appVersion = app.getVersion()
+    mainWindow.webContents.session
+      .clearCache()
+      .catch(() => {})
+    mainWindow.webContents.session
+      .clearStorageData({
+        storages: ['serviceworkers', 'cachestorage', 'filesystem', 'indexdb', 'localstorage'],
+      })
+      .catch(() => {})
+      .finally(() => {
+        mainWindow?.loadFile(path.join(__dirname, '../dist/index.html'), {
+          query: { v: appVersion },
+        })
+      })
   }
 }
 
@@ -401,6 +448,18 @@ ipcMain.handle('open-logs-folder', async () => {
   return { ok: true, path: logsDir }
 })
 
+ipcMain.handle('open-external', async (_, url) => {
+  const target = String(url || '').trim()
+  if (!target) return { ok: false, message: '未提供可打开的链接' }
+
+  try {
+    await shell.openExternal(target)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: err?.message || String(err) }
+  }
+})
+
 ipcMain.handle('get-logs-path', async () => {
   await fs.mkdir(logsDir, { recursive: true })
   return { ok: true, logsDir, mainLogPath, rendererLogPath }
@@ -425,6 +484,88 @@ ipcMain.handle('update-quit-and-install', async () => {
   try {
     autoUpdater.quitAndInstall()
     return { ok: true }
+  } catch (err) {
+    return { ok: false, message: err?.message || String(err) }
+  }
+})
+
+ipcMain.handle('wipe-user-data', async () => {
+  if (isDev) {
+    return { ok: false, message: '开发模式不建议清空（请打包后再测试）' }
+  }
+  try {
+    // 尽量减少占用，先关闭窗口
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        w.hide()
+      } catch {
+        // ignore
+      }
+      try {
+        w.destroy()
+      } catch {
+        // ignore
+      }
+    }
+
+    const targets = [
+      dataDir,
+      logsDir,
+      path.join(userDataDir, 'Cache'),
+      path.join(userDataDir, 'Code Cache'),
+      path.join(userDataDir, 'GPUCache'),
+      path.join(userDataDir, 'Local Storage'),
+      path.join(userDataDir, 'Session Storage'),
+      path.join(userDataDir, 'IndexedDB'),
+    ]
+
+    const errors = []
+    for (const t of targets) {
+      const res = await safeRm(t)
+      if (!res.ok) errors.push({ path: t, message: res.message })
+    }
+
+    if (errors.length > 0) {
+      return { ok: false, message: '部分文件仍在占用，清空未完成', errors }
+    }
+
+    app.relaunch()
+    app.exit(0)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: err?.message || String(err) }
+  }
+})
+
+ipcMain.removeHandler('wipe-user-data')
+ipcMain.handle('wipe-user-data', async () => {
+  if (isDev) {
+    return { ok: false, message: '开发模式不建议清空，请打包后再测试。' }
+  }
+
+  try {
+    for (const w of BrowserWindow.getAllWindows()) {
+      try {
+        w.hide()
+      } catch {
+        // ignore
+      }
+      try {
+        w.destroy()
+      } catch {
+        // ignore
+      }
+    }
+
+    const relaunchArgs = process.argv.filter((arg) => arg !== WIPE_ON_RELAUNCH_FLAG)
+    relaunchArgs.push(WIPE_ON_RELAUNCH_FLAG)
+
+    setTimeout(() => {
+      app.relaunch({ args: relaunchArgs })
+      app.exit(0)
+    }, 150)
+
+    return { ok: true, restarting: true }
   } catch (err) {
     return { ok: false, message: err?.message || String(err) }
   }
@@ -458,7 +599,15 @@ ipcMain.handle('fetch-gunpla-cover-image', async (_, payload) => {
 })
 
 app.whenReady().then(async () => {
+  if (process.argv.includes(WIPE_ON_RELAUNCH_FLAG)) {
+    const errors = await wipeUserDataDirectories()
+    if (errors.length > 0) {
+      await appendLog(mainLogPath, 'error', `wipe user data failed: ${JSON.stringify(errors)}`)
+    }
+  }
+
   await ensureStorage()
+  app.setName('金屋藏胶 / Gunpla Manager')
   logMain('info', `app ready (isDev=${isDev}) userData=${userDataDir}`)
   createWindow()
   initAutoUpdater()

@@ -12,7 +12,10 @@ function StatsModal() {
       (sum, item) => sum + (item.purchasePrice || 0) * (item.purchaseCount || 1),
       0,
     )
-    const totalCurrent = owned.reduce((sum, item) => sum + (item.currentPrice || 0), 0)
+    const totalCurrent = owned.reduce(
+      (sum, item) => sum + (item.currentPrice || 0) * (item.purchaseCount || 1),
+      0,
+    )
     const pnl = totalCurrent - totalCost
     const avgBuy = totalTimes ? Math.round(totalCost / totalTimes) : 0
     const maxCurrent = owned.reduce((max, item) => Math.max(max, item.currentPrice || 0), 0)
@@ -48,15 +51,36 @@ function StatsModal() {
     }
   }, [gunplaList])
 
+  const cards = [
+    { label: '总数', value: stats.total, tone: 'text-white' },
+    {
+      label: '收藏 / 愿望 / 完成',
+      value: `${stats.owned} / ${stats.wishlist} / ${stats.completed}`,
+      tone: 'text-cyan-100',
+    },
+    { label: '累计投入', value: `¥${stats.totalCost.toLocaleString('zh-CN')}`, tone: 'text-white' },
+    {
+      label: '浮动盈亏',
+      value: `¥${stats.pnl.toLocaleString('zh-CN')}`,
+      tone: stats.pnl >= 0 ? 'text-emerald-300' : 'text-rose-300',
+    },
+    { label: '平均入手价', value: `¥${stats.avgBuy.toLocaleString('zh-CN')}`, tone: 'text-white' },
+    { label: '最高当前价', value: `¥${stats.maxCurrent.toLocaleString('zh-CN')}`, tone: 'text-amber-200' },
+  ]
+
   const renderMap = (title, mapObj) => (
-    <section className="rounded-xl border border-zinc-800 p-3">
-      <h4 className="mb-2 text-sm font-semibold text-zinc-200">{title}</h4>
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(mapObj).map(([key, value]) => (
-          <span key={key} className="rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300">
-            {key}: {value}
-          </span>
-        ))}
+    <section className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+      <h4 className="text-sm font-semibold text-white">{title}</h4>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {Object.entries(mapObj).length === 0 ? (
+          <span className="text-sm text-slate-500">暂无数据</span>
+        ) : (
+          Object.entries(mapObj).map(([key, value]) => (
+            <span key={key} className="app-chip">
+              {key}: {value}
+            </span>
+          ))
+        )}
       </div>
     </section>
   )
@@ -70,44 +94,46 @@ function StatsModal() {
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className={`w-full max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl transition ${
+        className={`app-panel-strong relative w-full max-w-4xl overflow-hidden rounded-[32px] p-5 transition ${
           isStatsOpen ? 'scale-100' : 'scale-95'
         }`}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-zinc-100">统计分析</h3>
-          <button
-            onClick={closeStats}
-            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition hover:brightness-110"
-          >
-            关闭
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            总数：{stats.total}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,212,255,0.13),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.03),transparent_45%)]" />
+
+        <div className="relative">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.3em] text-sky-200/70">
+                Collection Insight
+              </div>
+              <h3 className="mt-2 text-2xl font-semibold text-white">统计分析</h3>
+              <p className="mt-1 text-sm text-slate-400">像展柜后的数据卡片，帮助你快速看清收藏结构和投入分布。</p>
+            </div>
+            <button onClick={closeStats} className="app-btn-secondary !rounded-full !px-4 !py-2">
+              关闭
+            </button>
           </div>
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            已拥有：{stats.owned} / 愿望：{stats.wishlist} / 完成：{stats.completed}
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {cards.map((card) => (
+              <div
+                key={card.label}
+                className="rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4"
+              >
+                <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                  {card.label}
+                </div>
+                <div className={`mt-3 text-2xl font-semibold ${card.tone}`}>{card.value}</div>
+              </div>
+            ))}
           </div>
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            总花费：￥{stats.totalCost}
+
+          <div className="mt-5 max-h-[48vh] space-y-3 overflow-y-auto pr-1">
+            {renderMap('按 Grade 分布', stats.byGrade)}
+            {renderMap('按系列分布', stats.bySeries)}
+            {renderMap('按拼装进度分布', stats.byBuild)}
+            {renderMap('按月购入趋势', stats.byMonth)}
           </div>
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            总盈亏：<span className={stats.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>￥{stats.pnl}</span>
-          </div>
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            均价：￥{stats.avgBuy}
-          </div>
-          <div className="rounded-xl border border-zinc-800 p-3 text-sm text-zinc-300">
-            最高当前价：￥{stats.maxCurrent}
-          </div>
-        </div>
-        <div className="mt-4 space-y-3 max-h-[45vh] overflow-y-auto pr-1">
-          {renderMap('按等级分布', stats.byGrade)}
-          {renderMap('按系列分布', stats.bySeries)}
-          {renderMap('按拼装状态分布', stats.byBuild)}
-          {renderMap('按月购入次数趋势', stats.byMonth)}
         </div>
       </div>
     </div>

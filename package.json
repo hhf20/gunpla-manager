@@ -1,7 +1,7 @@
 {
   "name": "wj",
   "private": true,
-  "version": "2.0.5",
+  "version": "2.1.16",
   "type": "module",
   "repository": {
     "type": "git",
@@ -62,7 +62,9 @@
       "package.json"
     ],
     "asar": true,
+    "icon": "build/icon.ico",
     "win": {
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "target": [
         "nsis"
@@ -70,7 +72,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/nsis/uninstall-data.nsh"
     }
   }
 }

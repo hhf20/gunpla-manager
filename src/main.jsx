@@ -8,6 +8,12 @@ import { initRendererLogging, log } from './utils/logger'
 initRendererLogging()
 log('info', 'renderer boot')
 
+if (!window.api && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {})
+  })
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <HashRouter>

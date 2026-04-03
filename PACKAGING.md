@@ -72,21 +72,28 @@ npm run dist:win
 
 ### 发版（发布到 GitHub Release）的推荐方式
 
+> 本项目采用“**做法 1：不再推送源码，只发 Release 附件**”。
+
 1. 更新 `package.json` 的 `version`（这会影响更新比较与安装包文件名）
+   - 同步维护 `src/data/changelog.js`（用户可见更新日志）
 2. 打包 Windows 安装包：
 
 ```bash
 npm run dist:win
 ```
 
-3. 在 GitHub 创建一个与版本一致的 Release（tag 例如 `v2.0.5`）
-4. 上传 `release/` 目录中本次版本对应的文件（通常包含）：
+3. 打包成功后，确认 `release/` 中生成了：
+   - `Gunpla Manager Setup <version>.exe`
+   - `Gunpla Manager Setup <version>.exe.blockmap`
+   - `latest.yml`
+4. 在 GitHub 创建一个与版本一致的 Release（tag 建议用 `v<version>`，例如 `v2.0.5`）
+5. 在该 Release 的附件（Assets）里上传上面的 3 个文件：
 
 - `Gunpla Manager Setup <version>.exe`
 - `Gunpla Manager Setup <version>.exe.blockmap`
-- `latest.yml`（或同类更新元数据文件，electron-builder 发布时会生成/上传）
+- `latest.yml`
 
-> 提示：要做到“打包后自动上传到 Release”，建议后续加 GitHub Actions（CI）自动发布流程。
+> 注意：不要把 `release/` 目录提交到 git（本项目已在 `.gitignore` 忽略）。Release 附件才是给用户更新用的发布物。
 
 ## 每次打包时的“执行约定”（避免反复踩坑）
 

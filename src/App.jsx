@@ -1,24 +1,23 @@
+import { Suspense } from 'react'
 import { Route, Routes } from 'react-router-dom'
-import Header from './components/Header'
-import Sidebar from './components/Sidebar'
-import MainContent from './components/MainContent'
 import AddGunplaModal from './components/AddGunplaModal'
+import CoverLibraryModal from './components/CoverLibraryModal'
 import DetailDrawer from './components/DetailDrawer'
 import EditGunplaPage from './components/EditGunplaPage'
-import StatsModal from './components/StatsModal'
-import TypeManagementModal from './components/TypeManagementModal'
-import CoverLibraryModal from './components/CoverLibraryModal'
-import ThemeBackground from './components/ThemeBackground'
+import Header from './components/Header'
 import ManualLibraryModal from './components/ManualLibraryModal'
+import Sidebar from './components/Sidebar'
+import MainContent from './components/MainContent'
+import MobileDetailPage from './components/MobileDetailPage'
+import MobileHomePage from './components/MobileHomePage'
+import MobileStatsPage from './components/MobileStatsPage'
+import StatsModal from './components/StatsModal'
+import ThemeBackground from './components/ThemeBackground'
+import TypeManagementModal from './components/TypeManagementModal'
 import { GunplaProvider, useGunpla } from './context/GunplaContext'
-import { useSupabaseSession } from './hooks/useSupabaseSession'
+import { useIsMobileLayout } from './hooks/useIsMobileLayout'
 
-function SupabaseSessionInit() {
-  useSupabaseSession()
-  return null
-}
-
-function AppLayout() {
+function DesktopLayout() {
   const { filteredGunplaList } = useGunpla()
 
   return (
@@ -37,10 +36,29 @@ function AppLayout() {
   )
 }
 
+function MobileLayout() {
+  return (
+    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+      <Routes>
+        <Route path="/" element={<MobileHomePage />} />
+        <Route path="/model/:id" element={<MobileDetailPage />} />
+        <Route path="/stats" element={<MobileStatsPage />} />
+      </Routes>
+    </div>
+  )
+}
+
+function AppShell() {
+  const isMobileLayout = useIsMobileLayout()
+  return isMobileLayout ? <MobileLayout /> : <DesktopLayout />
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<AppLayout />} />
+      <Route path="/" element={<AppShell />} />
+      <Route path="/model/:id" element={<AppShell />} />
+      <Route path="/stats" element={<AppShell />} />
       <Route path="/edit/:id" element={<EditGunplaPage />} />
     </Routes>
   )
@@ -49,7 +67,6 @@ function AppRoutes() {
 function App() {
   return (
     <GunplaProvider>
-      <SupabaseSessionInit />
       <ThemeBackground />
       <AppRoutes />
       <CoverLibraryModal />

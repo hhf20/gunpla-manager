@@ -14,15 +14,15 @@ function ChangelogModal({ isOpen, onClose }) {
     >
       <div
         className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <div>
             <h2 id="changelog-title" className="text-lg font-semibold text-zinc-100">
-              更新日志
+              金屋藏胶更新日志
             </h2>
             <p className="mt-0.5 text-xs text-zinc-500">
-              了解每次版本带来的变化
+              了解每次版本带来的变化。
               {latestVersionLabel ? (
                 <span className="ml-2 text-zinc-600">· 最新 v{latestVersionLabel}</span>
               ) : null}
@@ -43,13 +43,11 @@ function ChangelogModal({ isOpen, onClose }) {
                 <div className="mb-2 flex flex-wrap items-baseline gap-2">
                   <span className="text-sm font-semibold text-blue-400">v{entry.version}</span>
                   <span className="text-xs text-zinc-500">{entry.date}</span>
-                  {entry.title ? (
-                    <span className="text-sm text-zinc-300">{entry.title}</span>
-                  ) : null}
+                  {entry.title ? <span className="text-sm text-zinc-300">{entry.title}</span> : null}
                 </div>
                 <ul className="list-inside list-disc space-y-1.5 text-sm leading-relaxed text-zinc-400">
-                  {entry.items.map((line, idx) => (
-                    <li key={`${entry.version}-${idx}`} className="marker:text-zinc-600">
+                  {entry.items.map((line, index) => (
+                    <li key={`${entry.version}-${index}`} className="marker:text-zinc-600">
                       {line}
                     </li>
                   ))}

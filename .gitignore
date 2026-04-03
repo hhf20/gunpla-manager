@@ -14,6 +14,7 @@ release
 release2
 release3
 *.local
+.env
 
 # Editor directories and files
 .vscode/*
