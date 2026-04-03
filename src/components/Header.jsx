@@ -49,26 +49,6 @@ function Header() {
     )
   }
 
-  const openMobileWeb = async () => {
-    if (!hasConfiguredMobileWebUrl()) {
-      window.alert(
-        `移动端网址尚未配置。请先在 .env 或 CI 环境变量中填写 VITE_MOBILE_WEB_URL，例如：${mobileWebUrl}`,
-      )
-      return
-    }
-
-    try {
-      if (window.api?.openExternal) {
-        const result = await window.api.openExternal(mobileWebUrl)
-        if (!result?.ok) throw new Error(result?.message || '打开移动端失败')
-        return
-      }
-      window.open(mobileWebUrl, '_blank', 'noopener,noreferrer')
-    } catch (error) {
-      window.alert(error?.message || '打开移动端失败')
-    }
-  }
-
   const handleImportClick = () => {
     fileInputRef.current?.click()
   }
@@ -252,16 +232,6 @@ function Header() {
                           type="button"
                           className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
                           onClick={() => {
-                            openMobileWeb()
-                            setMoreOpen(false)
-                          }}
-                        >
-                          打开移动端
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                          onClick={() => {
                             showPortableExportMessage()
                             setMoreOpen(false)
                           }}
@@ -323,9 +293,6 @@ function Header() {
                     <button type="button" onClick={showPortableExportMessage} className={compactSecondaryButton}>
                       导出到移动端
                     </button>
-                    <button type="button" onClick={openMobileWeb} className={compactSecondaryButton}>
-                      打开移动端
-                    </button>
                     <button type="button" onClick={handleImportClick} className={compactSecondaryButton}>
                       导入数据
                     </button>
@@ -372,17 +339,10 @@ function Header() {
                     {action.label}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={openMobileWeb}
-                  className="rounded-full border border-cyan-300/18 bg-cyan-400/10 px-3.5 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-400/20"
-                >
-                  移动端入口
-                </button>
               </div>
 
               <div className="rounded-full border border-white/10 bg-black/10 px-3.5 py-2 text-xs text-slate-300">
-                桌面端继续负责维护数据，移动端优先做轻量浏览与导入。
+                桌面端维护资料；通过「导出到移动端」生成 JSON，在手机浏览器导入浏览。
               </div>
             </div>
 

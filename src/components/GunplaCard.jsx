@@ -50,6 +50,8 @@ function buildDisplayTitle(item) {
 }
 
 function GunplaCard({ item, onOpen = null, variant = 'default' }) {
+  const isHangarCard = variant === 'hangar'
+  const isGalleryCard = variant === 'gallery'
   const isMobileCard = variant === 'mobile'
   const { openDetail } = useGunpla()
   const navigate = useNavigate()
@@ -71,6 +73,100 @@ function GunplaCard({ item, onOpen = null, variant = 'default' }) {
   const handleOpen = () => {
     if (typeof onOpen === 'function') onOpen(item)
     else openDetail(item.id)
+  }
+
+  if (isHangarCard) {
+    const title = normalizeTitlePart(item.name) || buildDisplayTitle(item)
+    const gradeLine = [item.grade, item.scale].filter(Boolean).join(' ')
+    const est = isWishlist ? item.expectedPrice : item.purchasePrice
+
+    return (
+      <article
+        onClick={handleOpen}
+        className="group flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-[linear-gradient(145deg,rgba(22,32,52,0.96),rgba(8,14,26,0.98))] p-3 shadow-[0_14px_44px_rgba(0,0,0,0.38)] active:scale-[0.99]"
+      >
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-slate-950/90 ring-1 ring-white/10">
+          {item.coverImage ? (
+            <img src={item.coverImage} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-[10px] text-slate-600">无图</div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-400">
+              {gradeLine || '—'}
+            </span>
+            {isWishlist ? (
+              <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wider text-amber-300/90">
+                WISH
+              </span>
+            ) : null}
+          </div>
+          <h3 className="mt-1 line-clamp-2 text-[13px] font-semibold uppercase leading-snug tracking-wide text-white">
+            {title}
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {item.buildStatus ? (
+              <span
+                className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                  buildStatusColorMap[item.buildStatus] ||
+                  'border border-slate-500/30 bg-slate-600/30 text-slate-100'
+                }`}
+              >
+                {item.buildStatus}
+              </span>
+            ) : null}
+            {!isWishlist && item.status ? (
+              <span
+                className={`rounded-md px-2 py-0.5 text-[10px] ${statusStyleMap[item.status] || 'bg-slate-700/50 text-slate-200'}`}
+              >
+                {item.status}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            参考价 <span className="font-medium text-slate-300">{formatCurrency(est)}</span>
+          </p>
+        </div>
+      </article>
+    )
+  }
+
+  if (isGalleryCard) {
+    const title = normalizeTitlePart(item.name) || buildDisplayTitle(item)
+    return (
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="group w-full cursor-pointer border-0 bg-transparent p-0 text-left touch-manipulation [-webkit-tap-highlight-color:transparent]"
+      >
+        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-slate-950/90 ring-1 ring-white/10">
+          {item.coverImage ? (
+            <img
+              src={item.coverImage}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+              draggable={false}
+            />
+          ) : (
+            <div className="flex h-full min-h-[88px] items-center justify-center text-[10px] text-slate-600">无图</div>
+          )}
+          {isWishlist ? (
+            <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-amber-950">
+              WISH
+            </span>
+          ) : null}
+        </div>
+        <p
+          className="mt-1.5 line-clamp-2 text-left text-[10px] font-medium leading-tight text-slate-200"
+          title={title}
+        >
+          {title}
+        </p>
+      </button>
+    )
   }
 
   const articleClass = [

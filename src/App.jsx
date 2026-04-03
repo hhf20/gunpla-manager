@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import AddGunplaModal from './components/AddGunplaModal'
 import CoverLibraryModal from './components/CoverLibraryModal'
 import DetailDrawer from './components/DetailDrawer'
@@ -37,19 +37,41 @@ function DesktopLayout() {
   )
 }
 
+/** 仅首页：详情/统计必须在顶层 Route 注册，否则宽屏走 DesktopLayout 时内层 Routes 不挂载，URL 变了页面不变 */
 function MobileLayout() {
-  const location = useLocation()
-  const hideBottomNav = location.pathname.startsWith('/model/')
   const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
 
   return (
     <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
-      <Routes>
-        <Route path="/" element={<MobileHomePage />} />
-        <Route path="/model/:id" element={<MobileDetailPage />} />
-        <Route path="/stats" element={<MobileStatsPage />} />
-      </Routes>
-      {!hideBottomNav ? <MobileBottomNav /> : null}
+      <MobileHomePage />
+      <MobileBottomNav />
+      <MobileFilterDrawer
+        isOpen={isMobileFilterDrawerOpen}
+        onClose={() => setMobileFilterDrawerOpen(false)}
+      />
+    </div>
+  )
+}
+
+function MobileDetailPageWrapper() {
+  const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
+  return (
+    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+      <MobileDetailPage />
+      <MobileFilterDrawer
+        isOpen={isMobileFilterDrawerOpen}
+        onClose={() => setMobileFilterDrawerOpen(false)}
+      />
+    </div>
+  )
+}
+
+function MobileStatsPageWrapper() {
+  const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
+  return (
+    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+      <MobileStatsPage />
+      <MobileBottomNav />
       <MobileFilterDrawer
         isOpen={isMobileFilterDrawerOpen}
         onClose={() => setMobileFilterDrawerOpen(false)}
@@ -66,10 +88,10 @@ function AppShell() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<AppShell />} />
-      <Route path="/model/:id" element={<AppShell />} />
-      <Route path="/stats" element={<AppShell />} />
       <Route path="/edit/:id" element={<EditGunplaPage />} />
+      <Route path="/model/:id" element={<MobileDetailPageWrapper />} />
+      <Route path="/stats" element={<MobileStatsPageWrapper />} />
+      <Route path="/*" element={<AppShell />} />
     </Routes>
   )
 }

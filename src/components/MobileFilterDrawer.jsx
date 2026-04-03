@@ -114,7 +114,7 @@ function MobileFilterDrawer({ isOpen, onClose }) {
       />
       <aside
         className={`app-panel-strong fixed inset-y-0 left-0 z-50 flex w-[88vw] max-w-sm flex-col rounded-r-[28px] transition-transform ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          isOpen ? 'translate-x-0' : 'pointer-events-none -translate-x-full'
         }`}
       >
         <div className="border-b border-white/8 px-5 pb-4 pt-5">

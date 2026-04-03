@@ -1,10 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import {
-  downloadJsonFile,
-  readJsonFile,
-  readLocalStorage,
-  writeLocalStorage,
-} from '../utils/localStorage'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { downloadJsonFile, readJsonFile } from '../utils/localStorage'
+import { persistWebPayload, readWebPayload } from '../utils/webIndexedDbStorage'
 import { normalizeMatchKey, parseGunplaExcel } from '../utils/excelImport'
 import {
   DEFAULT_BUILD_STATUS_CONFIG,
@@ -40,7 +36,6 @@ import {
 } from '../utils/configTree'
 
 const GunplaContext = createContext(null)
-const WEB_STORAGE_KEY = 'gunpla_manager_portable_data_v1'
 
 export function filterGunplaList(gunplaList, filterState) {
   return gunplaList.filter((item) => {
@@ -98,6 +93,7 @@ export function GunplaProvider({ children }) {
   const [isManualOpen, setIsManualOpen] = useState(false)
   const [manualRootPath, setManualRootPath] = useState(DEFAULT_DATA.manualRootPath || '')
   const [isMobileFilterDrawerOpen, setMobileFilterDrawerOpen] = useState(false)
+  const persistTimerRef = useRef(null)
 
   const categoryConfig = useMemo(
     () => ({
@@ -121,7 +117,7 @@ export function GunplaProvider({ children }) {
       try {
         const data = window.api?.readData
           ? await window.api.readData()
-          : readLocalStorage(WEB_STORAGE_KEY, DEFAULT_DATA)
+          : await readWebPayload(DEFAULT_DATA)
         if (cancelled) return
         const safeData = data && typeof data === 'object' ? data : DEFAULT_DATA
         const nextGunplaList = Array.isArray(safeData.gunplaList)
@@ -166,8 +162,16 @@ export function GunplaProvider({ children }) {
       manualRootPath,
     }
 
-    if (window.api?.writeData) window.api.writeData(payload)
-    else writeLocalStorage(WEB_STORAGE_KEY, payload)
+    if (window.api?.writeData) {
+      window.api.writeData(payload)
+      return
+    }
+
+    clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = setTimeout(() => {
+      persistWebPayload(payload)
+    }, 400)
+    return () => clearTimeout(persistTimerRef.current)
   }, [
     gunplaList,
     coverLibrary,
@@ -559,7 +563,17 @@ export function GunplaProvider({ children }) {
         manualRootPath: nextManualRootPath,
       }
       if (window.api?.writeData) await window.api.writeData(persistedPayload)
-      else writeLocalStorage(WEB_STORAGE_KEY, persistedPayload)
+      else {
+        const persistResult = await persistWebPayload(persistedPayload)
+        if (!persistResult.ok) {
+          return {
+            ok: false,
+            message:
+              persistResult.message ||
+              '\u5bfc\u5165\u6210\u529f\u4f46\u65e0\u6cd5\u5199\u5165\u672c\u5730\u5b58\u50a8\uff0c\u8bf7\u68c0\u67e5\u6d4f\u89c8\u5668\u5b58\u50a8\u7a7a\u95f4\u3002',
+          }
+        }
+      }
       return { ok: true, message: '\u5bfc\u5165\u6210\u529f\uff0c\u5df2\u8986\u76d6\u5f53\u524d\u6570\u636e' }
     } catch {
       return { ok: false, message: '\u5bfc\u5165\u5931\u8d25\uff1aJSON \u89e3\u6790\u5931\u8d25\u6216\u6587\u4ef6\u5df2\u635f\u574f' }

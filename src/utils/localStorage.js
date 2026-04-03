@@ -1,4 +1,6 @@
-const isBrowser = typeof window !== 'undefined'
+﻿const isBrowser = typeof window !== 'undefined'
+
+export const GUNPLA_WEB_STORAGE_KEY = 'gunpla_manager_portable_data_v1'
 
 export function readLocalStorage(key, fallback) {
   if (!isBrowser) return fallback

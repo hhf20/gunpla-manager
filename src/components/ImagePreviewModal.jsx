@@ -34,6 +34,7 @@ function ImagePreviewModal({ isOpen, images, currentIndex, onClose, onPrev, onNe
         src={image}
         alt="preview"
         className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
+        onClick={(event) => event.stopPropagation()}
       />
       <button
         onClick={(event) => {
