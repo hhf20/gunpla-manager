@@ -177,3 +177,26 @@ export function moveNode(nodes, nodeId, direction) {
   siblings.splice(targetIndex, 0, item)
   return next
 }
+
+export function reorderNode(nodes, nodeId, targetNodeId, placement = 'before') {
+  if (!['before', 'after'].includes(placement)) return nodes || []
+
+  const next = structuredClone(nodes || [])
+  const found = findNode(next, nodeId)
+  const target = findNode(next, targetNodeId)
+
+  if (!found?.node || !target?.node || found.node.id === target.node.id) return next
+
+  const sourceSiblings = found.parent ? found.parent.children : next
+  const targetSiblings = target.parent ? target.parent.children : next
+  if (sourceSiblings !== targetSiblings) return next
+
+  const [item] = sourceSiblings.splice(found.index, 1)
+  let insertIndex = target.index
+
+  if (found.index < target.index) insertIndex -= 1
+  if (placement === 'after') insertIndex += 1
+
+  targetSiblings.splice(insertIndex, 0, item)
+  return next
+}

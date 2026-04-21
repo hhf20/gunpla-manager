@@ -92,19 +92,19 @@ function PdfPreview({ fileUrl }) {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-2 py-2">
-        <span className="text-xs text-zinc-400">缩放</span>
+      <div className="flex items-center gap-2 border-b theme-border px-2 py-2">
+        <span className="text-xs theme-text-secondary">缩放</span>
         <button
           type="button"
-          className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-700"
+          className="app-btn-secondary !rounded !px-2 !py-1 !text-xs"
           onClick={() => setScale((s) => Math.max(0.6, Number((s - 0.1).toFixed(2))))}
         >
           -
         </button>
-        <span className="text-xs text-zinc-300 tabular-nums">{Math.round(scale * 100)}%</span>
+        <span className="text-xs tabular-nums theme-text-primary">{Math.round(scale * 100)}%</span>
         <button
           type="button"
-          className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-700"
+          className="app-btn-secondary !rounded !px-2 !py-1 !text-xs"
           onClick={() => setScale((s) => Math.min(3, Number((s + 0.1).toFixed(2))))}
         >
           +
@@ -113,18 +113,18 @@ function PdfPreview({ fileUrl }) {
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-40"
+            className="app-btn-secondary !rounded !px-2 !py-1 !text-xs disabled:opacity-40"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={clampedPage <= 1 || !numPages}
           >
             上一页
           </button>
-          <span className="text-xs text-zinc-400 tabular-nums">
+          <span className="text-xs tabular-nums theme-text-secondary">
             {clampedPage}/{numPages || 0}
           </span>
           <button
             type="button"
-            className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-40"
+            className="app-btn-secondary !rounded !px-2 !py-1 !text-xs disabled:opacity-40"
             onClick={() => setPage((p) => Math.min(numPages, p + 1))}
             disabled={clampedPage >= numPages || !numPages}
           >
@@ -134,10 +134,10 @@ function PdfPreview({ fileUrl }) {
       </div>
 
       {error ? (
-        <div className="flex-1 overflow-auto p-4 text-sm text-red-300">{error}</div>
+        <div className="flex-1 overflow-auto p-4 text-sm text-[color:var(--danger)]">{error}</div>
       ) : (
         <div
-          className="flex-1 min-h-0 overflow-auto bg-zinc-950/20"
+          className="flex-1 min-h-0 overflow-auto theme-surface-soft"
           ref={containerRef}
           style={{ cursor: dragRef.current.dragging ? 'grabbing' : 'grab' }}
           onMouseDown={(e) => {
@@ -162,7 +162,7 @@ function PdfPreview({ fileUrl }) {
           }}
         >
           {rendering ? (
-            <div className="p-6 text-sm text-zinc-400">{numPages ? '渲染中…' : '加载中…'}</div>
+            <div className="p-6 text-sm theme-text-secondary">{numPages ? '渲染中…' : '加载中…'}</div>
           ) : null}
           <canvas ref={canvasRef} style={{ display: 'block', margin: '0 auto' }} />
         </div>

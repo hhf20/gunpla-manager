@@ -1,5 +1,5 @@
-const CACHE_NAME = 'gunpla-manager-pwa-v1'
-const APP_ASSETS = ['./', './manifest.webmanifest', './favicon.svg']
+﻿const CACHE_NAME = 'gunpla-manager-pwa-v1'
+const APP_ASSETS = ['./', './manifest.webmanifest', './favicon.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,3 +34,4 @@ self.addEventListener('fetch', (event) => {
     }),
   )
 })
+

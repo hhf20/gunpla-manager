@@ -1,12 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGunpla } from '../context/GunplaContext'
 import { addNode, flattenLabels } from '../utils/configTree'
-
-const typeOptions = [
-  { label: '全部', value: 'all' },
-  { label: '我的收藏', value: 'owned' },
-  { label: '愿望清单', value: 'wishlist' },
-]
+import { scrollDesktopContainersToTop } from '../utils/desktopScroll'
 
 function Sidebar() {
   const {
@@ -16,11 +11,14 @@ function Sidebar() {
     configTree,
     uiState,
     setSidebarWidth,
+    setSidebarCollapsed,
     openManual,
   } = useGunpla()
   const [expanded, setExpanded] = useState({})
+  const bodyRef = useRef(null)
 
   const sidebarWidth = Math.min(420, Math.max(248, Number(uiState?.sidebarWidth) || 288))
+  const isSidebarCollapsed = uiState?.sidebarCollapsed === true
 
   const toggleListFilter = (key, value) => {
     setFilterState((prev) => {
@@ -96,10 +94,8 @@ function Sidebar() {
     window.addEventListener('mouseup', onUp)
   }
 
-  const shouldShowNodeLogo = (sectionKey) => {
-    if (sectionKey === 'grade') return uiState.showGradeLogo !== false
-    if (sectionKey === 'series') return uiState.showSeriesLogo !== false
-    return false
+  const scrollToTop = () => {
+    scrollDesktopContainersToTop(bodyRef.current)
   }
 
   const renderTree = (sectionKey, nodes, filterKey, { cascade = false } = {}, depth = 0) =>
@@ -110,25 +106,23 @@ function Sidebar() {
       const selectedList = filterState[filterKey]
       const isChecked = selectedList.includes(node.label)
       const subtreeLabels = cascade ? flattenLabels([node]) : [node.label]
-      const showLogo = shouldShowNodeLogo(sectionKey)
-
       return (
         <div key={node.id} className="space-y-1">
-          <div className="flex items-center gap-2 text-sm text-slate-200" style={{ marginLeft: `${depth * 12}px` }}>
+          <div className="flex items-center gap-2 text-sm theme-text-primary" style={{ marginLeft: `${depth * 12}px` }}>
             {hasChildren ? (
               <button
                 type="button"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-xs text-slate-300 transition hover:bg-white/[0.1]"
+                className="theme-surface-soft flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs theme-text-secondary transition hover:bg-[color:var(--brand-soft)] hover:text-[var(--accent-strong)]"
                 onClick={() => setExpanded((prev) => ({ ...prev, [expandedKey]: !isExpanded }))}
                 title={isExpanded ? '收起' : '展开'}
               >
                 {isExpanded ? '-' : '+'}
               </button>
             ) : (
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center text-slate-600">•</span>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center theme-text-secondary">·</span>
             )}
 
-            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-white/[0.04]">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 transition hover:bg-[rgba(255,255,255,0.04)]">
               <input
                 checked={isChecked}
                 onChange={() =>
@@ -137,20 +131,8 @@ function Sidebar() {
                     : toggleListFilter(filterKey, node.label)
                 }
                 type="checkbox"
-                className="h-4 w-4 accent-cyan-400"
+                className="h-3.5 w-3.5 accent-[var(--accent-strong)]"
               />
-
-              {showLogo ? (
-                <span className="inline-flex h-7 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/8 bg-slate-950/70">
-                  {node.logoUrl ? (
-                    <img src={node.logoUrl} alt="" className="h-full w-full object-contain" />
-                  ) : (
-                    <span className="px-1 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                      {sectionKey === 'series' ? 'SERIES' : node.label}
-                    </span>
-                  )}
-                </span>
-              ) : null}
 
               <span className="truncate" title={node.label}>
                 {node.label}
@@ -165,49 +147,73 @@ function Sidebar() {
       )
     })
 
-  return (
-    <aside className="relative shrink-0 overflow-hidden px-4 py-4 lg:px-5" style={{ width: `${sidebarWidth}px` }}>
-      <div className="app-panel-strong sticky top-4 overflow-hidden rounded-[30px] p-5">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,212,255,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_55%)]" />
+  if (isSidebarCollapsed) {
+    return (
+      <aside className="dex-sidenav-wrap" style={{ width: '72px' }}>
+        <div className="dex-sidenav h-full px-2 py-3">
 
-        <div className="relative">
-          <section>
-            <div className="text-[11px] uppercase tracking-[0.3em] text-sky-200/70">View Mode</div>
-            <h3 className="mt-2 text-lg font-semibold text-white">筛选面板</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
-              左侧栏支持拖拽调宽，方便同时展示 Logo 和完整文字。
-            </p>
-          </section>
-
-          <section className="mt-5">
-            <div className="app-section-title">视图类型</div>
-            <div className="grid gap-2">
-              {typeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setFilterState((prev) => ({ ...prev, type: option.value }))}
-                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                    filterState.type === option.value
-                      ? 'border-cyan-300/25 bg-cyan-400/14 text-cyan-100'
-                      : 'border-white/8 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+          <div className="relative flex w-full flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(false)}
+              className="app-btn-secondary !min-h-[44px] !w-full !rounded-2xl !px-2 !py-2 !text-xs"
+            >
+              展开
+            </button>
+            <div className="theme-surface-soft rounded px-2 py-2 text-center text-[10px] uppercase tracking-[0.24em] theme-text-muted">
+              索引
             </div>
-          </section>
+          </div>
 
-          <section className="mt-6">
+          <div className="relative flex w-full flex-col gap-2">
+            <button
+              type="button"
+              onClick={openManual}
+              className="app-btn-secondary !min-h-[44px] !w-full !rounded-2xl !px-2 !py-2 !text-[11px]"
+            >
+              目录
+            </button>
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="app-btn-secondary !min-h-[44px] !w-full !rounded-2xl !px-2 !py-2 !text-[11px]"
+            >
+              TOP
+            </button>
+          </div>
+        </div>
+      </aside>
+    )
+  }
+
+  return (
+    <aside className="dex-sidenav-wrap" style={{ width: `${sidebarWidth}px` }}>
+      <div className="dex-sidenav h-full p-3">
+        <div ref={bodyRef} className="app-scroll-area relative min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.24em] theme-text-muted">Filter Library</div>
+              <div className="mt-1 text-sm font-semibold theme-text-primary">筛选导航</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(true)}
+              className="app-btn-secondary !rounded-full !px-3 !py-1.5 !text-[11px]"
+            >
+              收起左侧
+            </button>
+          </div>
+
+          <section>
             <div className="app-section-title">Grade</div>
-            <div className="rounded-[24px] border border-white/8 bg-black/10 p-3">
+            <div className="theme-surface-soft rounded-md p-2.5">
               <div className="space-y-1">{renderTree('grade', configTree?.grade, 'grades', { cascade: true })}</div>
             </div>
           </section>
 
           <section className="mt-6">
             <div className="app-section-title">拼装阶段</div>
-            <div className="rounded-[24px] border border-white/8 bg-black/10 p-3">
+            <div className="theme-surface-soft rounded-md p-2.5">
               <div className="space-y-1">
                 {renderTree('buildStatus', configTree?.buildStatusConfig, 'buildStatuses', { cascade: true })}
               </div>
@@ -216,28 +222,36 @@ function Sidebar() {
 
           <section className="mt-6">
             <div className="app-section-title">系列</div>
-            <div className="rounded-[24px] border border-white/8 bg-black/10 p-3">
+            <div className="theme-surface-soft rounded-md p-2.5">
               <div className="space-y-1">{renderTree('series', configTree?.series, 'series', { cascade: true })}</div>
             </div>
           </section>
 
           <section className="mt-6">
             <div className="app-section-title">标签</div>
-            <div className="rounded-[24px] border border-white/8 bg-black/10 p-3">
+            <div className="theme-surface-soft rounded-md p-2.5">
               <div className="space-y-1">{renderTree('tags', tagsTree, 'tags')}</div>
             </div>
           </section>
+        </div>
 
-          <section className="mt-8 border-t border-white/10 pt-5">
-            <button
-              type="button"
-              onClick={openManual}
-              className="app-btn-secondary w-full !justify-between !rounded-2xl"
-            >
-              说明书目录
-              <span className="text-xs text-slate-400">打开</span>
-            </button>
-          </section>
+        <div className="relative mt-4 space-y-2 border-t theme-border pt-4">
+          <button
+            type="button"
+            onClick={openManual}
+            className="app-btn-secondary w-full !justify-between !rounded-2xl"
+          >
+            说明书目录
+            <span className="text-xs theme-text-muted">打开</span>
+          </button>
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="app-btn-secondary w-full !justify-between !rounded-2xl"
+          >
+            TOP
+            <span className="text-xs theme-text-muted">回到顶部</span>
+          </button>
         </div>
       </div>
 
@@ -247,7 +261,7 @@ function Sidebar() {
         onMouseDown={startResize}
         className="absolute right-0 top-0 h-full w-3 cursor-col-resize bg-transparent"
       >
-        <span className="absolute right-[3px] top-1/2 h-20 w-[2px] -translate-y-1/2 rounded-full bg-white/12 transition hover:bg-cyan-300/70" />
+        <span className="absolute right-[3px] top-1/2 h-20 w-[2px] -translate-y-1/2 rounded-full bg-[var(--line)] transition hover:bg-[var(--accent-strong)]" />
       </button>
     </aside>
   )

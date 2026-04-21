@@ -2,17 +2,33 @@
  * Gunpla Wiki（gunpla.fandom.com）MediaWiki API：发售价与封面对应的盒绘图片。
  */
 
+import { buildSearchQueries } from './shared.js'
+
 const API = 'https://gunpla.fandom.com/api.php'
 export const SITE_LABEL = 'gunpla-fandom'
 
 const DEFAULT_HEADERS = {
   'User-Agent': 'GunplaManager/2.0 (Electron; wiki lookup; +https://github.com/)',
   Accept: 'application/json',
+  Referer: 'https://gunpla.fandom.com/',
 }
 
 export function wikiPageUrl(title) {
   const enc = encodeURIComponent(title).replace(/%20/g, '_')
   return `https://gunpla.fandom.com/wiki/${enc}`
+}
+
+class ProviderHttpError extends Error {
+  constructor(message, details = {}) {
+    super(message)
+    this.name = 'ProviderHttpError'
+    this.status = details.status || 0
+    this.url = details.url || ''
+    this.cfRay = details.cfRay || ''
+    this.requestId = details.requestId || ''
+    this.server = details.server || ''
+    this.contentType = details.contentType || ''
+  }
 }
 
 export async function fetchJson(url, ms = 14000) {
@@ -21,9 +37,39 @@ export async function fetchJson(url, ms = 14000) {
     signal: AbortSignal.timeout(ms),
   })
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`)
+    throw new ProviderHttpError(`HTTP ${res.status}`, {
+      status: res.status,
+      url,
+      cfRay: res.headers.get('cf-ray') || '',
+      requestId: res.headers.get('x-request-id') || '',
+      server: res.headers.get('server') || '',
+      contentType: res.headers.get('content-type') || '',
+    })
   }
   return res.json()
+}
+
+function buildDiagnostic(error) {
+  if (!(error instanceof ProviderHttpError)) return null
+  return {
+    provider: SITE_LABEL,
+    status: error.status || 0,
+    url: error.url || '',
+    cfRay: error.cfRay || '',
+    requestId: error.requestId || '',
+    server: error.server || '',
+    contentType: error.contentType || '',
+  }
+}
+
+function formatLookupError(error) {
+  if (error?.name === 'TimeoutError') {
+    return 'Gunpla Wiki 请求超时，请检查网络后重试。'
+  }
+  if (error instanceof ProviderHttpError && error.status === 403) {
+    return 'Gunpla Wiki 在当前网络下返回 403，可能是该用户的出口 IP、代理、DNS 或安全软件被站点风控拦截。'
+  }
+  return error?.message || String(error)
 }
 
 function normalizeTokens(str) {
@@ -43,6 +89,19 @@ function titleScore(title, tokens) {
     if (tl.includes(t)) s += 2
   }
   return s
+}
+
+function uniqueTokensFromQueries(queries) {
+  const seen = new Set()
+  const output = []
+  for (const query of queries || []) {
+    for (const token of normalizeTokens(query)) {
+      if (seen.has(token)) continue
+      seen.add(token)
+      output.push(token)
+    }
+  }
+  return output
 }
 
 function preferBaseKit(title, queryLower) {
@@ -78,21 +137,38 @@ export async function resolveGunplaWikiPage(payload) {
     return { ok: false, provider: SITE_LABEL, message: '请填写模型名称或货号后再查询' }
   }
 
-  const srParts = [grade, modelCode, name].filter(Boolean)
-  const srsearch = srParts.join(' ').trim()
+  const queries = buildSearchQueries({ ...payload, grade, modelCode, name })
+  const srsearch = queries[0] || [grade, modelCode, name].filter(Boolean).join(' ').trim()
   const queryLower = srsearch.toLowerCase()
-  const tokens = normalizeTokens(srsearch)
-
-  const searchUrl = `${API}?action=query&list=search&srsearch=${encodeURIComponent(srsearch)}&srlimit=15&format=json&formatversion=2`
-  const searchData = await fetchJson(searchUrl)
+  const tokens = uniqueTokensFromQueries(queries)
 
   /** @type {{ title: string }[]} */
-  let hits = searchData?.query?.search || []
+  let hits = []
+  const titleSeen = new Set()
+  for (const query of queries) {
+    const searchUrl = `${API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&format=json&formatversion=2`
+    const searchData = await fetchJson(searchUrl)
+    const currentHits = searchData?.query?.search || []
+    for (const hit of currentHits) {
+      const title = String(hit?.title || '').trim()
+      if (!title || titleSeen.has(title)) continue
+      titleSeen.add(title)
+      hits.push({ title })
+    }
+  }
+
   if (!hits.length && name) {
-    const osUrl = `${API}?action=opensearch&search=${encodeURIComponent(name)}&limit=12&format=json`
-    const os = await fetchJson(osUrl)
-    const titles = os?.[1] || []
-    hits = titles.map((t) => ({ title: t }))
+    for (const query of queries) {
+      const osUrl = `${API}?action=opensearch&search=${encodeURIComponent(query)}&limit=12&format=json`
+      const os = await fetchJson(osUrl)
+      const titles = os?.[1] || []
+      for (const title of titles) {
+        const nextTitle = String(title || '').trim()
+        if (!nextTitle || titleSeen.has(nextTitle)) continue
+        titleSeen.add(nextTitle)
+        hits.push({ title: nextTitle })
+      }
+    }
   }
 
   if (!hits.length) {
@@ -202,6 +278,17 @@ function pickFallbackImageName(names) {
   return scored[0]?.n || names[0]
 }
 
+function scoreImageFileName(name) {
+  const value = String(name || '').toLowerCase()
+  let score = 0
+  if (value.includes('box')) score += 10
+  if (value.includes('package') || value.includes('packaging')) score += 8
+  if (value.includes('art')) score += 4
+  if (value.includes('front')) score += 2
+  if (value.includes('_01') || value.endsWith('_01.jpg')) score -= 1
+  return score
+}
+
 /**
  * @param {{ name?: string, modelCode?: string, grade?: string }} payload
  */
@@ -237,8 +324,12 @@ export async function lookupGunplaReleasePrice(payload) {
       provider: SITE_LABEL,
     }
   } catch (e) {
-    const msg = e?.name === 'TimeoutError' ? '请求超时，请检查网络后重试' : e?.message || String(e)
-    return { ok: false, provider: SITE_LABEL, message: msg }
+    return {
+      ok: false,
+      provider: SITE_LABEL,
+      message: formatLookupError(e),
+      diagnostic: buildDiagnostic(e),
+    }
   }
 }
 
@@ -284,7 +375,87 @@ export async function lookupGunplaCoverImageInfo(payload) {
       provider: SITE_LABEL,
     }
   } catch (e) {
-    const msg = e?.name === 'TimeoutError' ? '请求超时，请检查网络后重试' : e?.message || String(e)
-    return { ok: false, provider: SITE_LABEL, message: msg }
+    return {
+      ok: false,
+      provider: SITE_LABEL,
+      message: formatLookupError(e),
+      diagnostic: buildDiagnostic(e),
+    }
+  }
+}
+
+export async function lookupGunplaCoverImageCandidates(payload) {
+  try {
+    const entry = await resolveGunplaWikiPage(payload)
+    if (!entry.ok) return entry
+
+    const fileNames = []
+    const primary = extractInfoboxImageFileName(entry.wikitext)
+    if (primary) fileNames.push(primary)
+
+    const parsedImages = await fetchParseImageFileNames(entry.title)
+    for (const imageName of parsedImages) {
+      if (!fileNames.includes(imageName)) fileNames.push(imageName)
+    }
+
+    const rankedNames = fileNames
+      .map((name) => ({ name, score: scoreImageFileName(name) }))
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 4)
+
+    const candidates = []
+    for (let index = 0; index < rankedNames.length; index += 1) {
+      const { name } = rankedNames[index]
+      try {
+        const downloadUrl = await fetchImageDownloadUrl(name)
+        if (!downloadUrl) continue
+        candidates.push({
+          provider: SITE_LABEL,
+          sourceUrl: entry.sourceUrl,
+          downloadUrl,
+          previewUrl: downloadUrl,
+          suggestedFileName: name.split('/').pop() || `wiki-cover-${index + 1}.jpg`,
+          label: index === 0 ? '推荐封面' : `候选图片 ${index + 1}`,
+        })
+      } catch {
+        // Skip individual image resolution failures and keep remaining candidates usable.
+      }
+    }
+
+    if (candidates.length === 0) {
+      const fallback = await lookupGunplaCoverImageInfo(payload)
+      if (fallback?.ok && fallback.downloadUrl) {
+        return {
+          ok: true,
+          provider: SITE_LABEL,
+          sourceUrl: fallback.sourceUrl,
+          candidates: [
+            {
+              provider: SITE_LABEL,
+              sourceUrl: fallback.sourceUrl,
+              downloadUrl: fallback.downloadUrl,
+              previewUrl: fallback.downloadUrl,
+              suggestedFileName: fallback.suggestedFileName,
+              label: '推荐封面',
+            },
+          ],
+        }
+      }
+      return {
+        ok: false,
+        provider: SITE_LABEL,
+        sourceUrl: entry.sourceUrl,
+        message: '该条目未找到可选图片',
+      }
+    }
+
+    return { ok: true, provider: SITE_LABEL, sourceUrl: entry.sourceUrl, candidates }
+  } catch (e) {
+    return {
+      ok: false,
+      provider: SITE_LABEL,
+      message: formatLookupError(e),
+      diagnostic: buildDiagnostic(e),
+    }
   }
 }

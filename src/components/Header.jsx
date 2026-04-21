@@ -45,7 +45,7 @@ function Header() {
     window.alert(
       hasConfiguredMobileWebUrl()
         ? `已导出移动端数据包。请让用户在手机浏览器打开 ${mobileWebUrl} 后导入 JSON 文件。`
-        : `已导出移动端数据包。部署 GitHub Pages 或本地构建前，请把 VITE_MOBILE_WEB_URL 配置为正式地址，例如 ${mobileWebUrl}。`,
+        : `已导出移动端数据包。正式上线前，请把 VITE_MOBILE_WEB_URL 配置为可访问地址，例如 ${mobileWebUrl}。`,
     )
   }
 
@@ -134,8 +134,8 @@ function Header() {
     }
   }, [])
 
-  const compactSecondaryButton =
-    'app-btn-secondary shrink-0 whitespace-nowrap !rounded-full !px-3.5 !py-2 !text-xs'
+  const compactSecondaryButton = 'app-btn-secondary shrink-0 whitespace-nowrap !px-3 !py-1.5 !text-xs'
+  const menuItemClass = 'dex-menu-item'
 
   const utilityActions = [
     { key: 'stats', label: '统计面板', onClick: openStats },
@@ -148,224 +148,180 @@ function Header() {
 
   return (
     <>
-      <header className="px-4 pt-4 md:px-6 md:pt-5">
-        <div className="app-panel-strong relative overflow-hidden rounded-[28px] px-4 py-4 md:px-5 md:py-4">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,212,255,0.16),transparent_28%),linear-gradient(125deg,rgba(255,255,255,0.03),transparent_50%)]" />
-
-          <div className="relative flex flex-col gap-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-sky-200/20 bg-slate-950/60 shadow-[0_14px_34px_rgba(43,177,230,0.22)]">
-                  <img src={brandMark} alt="金屋藏胶 Logo" className="h-full w-full object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.36em] text-sky-100/55">
-                    {APP_ENGLISH_NAME}
-                  </p>
-                  <h1 className="truncate text-[1.75rem] font-semibold tracking-tight text-white">
-                    {APP_CHINESE_NAME}
-                  </h1>
-                </div>
-              </div>
-
-              <div className="flex min-w-0 flex-1 flex-col gap-3 xl:max-w-5xl xl:flex-row xl:items-center xl:justify-end">
-                <div className="min-w-0 flex-1 xl:max-w-sm">
-                  <input
-                    type="text"
-                    placeholder="搜索名称、型号、系列或标签..."
-                    value={filterState.searchText}
-                    onChange={(event) =>
-                      setFilterState((prev) => ({ ...prev, searchText: event.target.value }))
-                    }
-                    className="app-input !rounded-full !py-2.5"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex rounded-full border border-white/10 bg-black/15 p-1">
-                    {typeTabs.map((tab) => (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={() => setFilterState((prev) => ({ ...prev, type: tab.value }))}
-                        className={`rounded-full px-4 py-2 text-sm transition ${
-                          filterState.type === tab.value
-                            ? 'bg-cyan-400/18 text-cyan-50 shadow-[inset_0_0_0_1px_rgba(103,212,255,0.25)]'
-                            : 'text-slate-300 hover:bg-white/[0.06]'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={openAddModal}
-                    className="app-btn-primary !rounded-full !px-5 !py-2.5"
-                  >
-                    新增模型
-                  </button>
-
-                  <div className="relative xl:hidden">
-                    <button
-                      type="button"
-                      onClick={() => setMoreOpen((open) => !open)}
-                      className={compactSecondaryButton}
-                      aria-expanded={moreOpen}
-                    >
-                      更多
-                    </button>
-                    {moreOpen ? (
-                      <div className="app-panel-strong absolute right-0 z-50 mt-2 flex min-w-[12rem] flex-col overflow-hidden rounded-2xl p-1">
-                        <button
-                          type="button"
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                          onClick={() => {
-                            exportData()
-                            setMoreOpen(false)
-                          }}
-                        >
-                          导出完整数据
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                          onClick={() => {
-                            showPortableExportMessage()
-                            setMoreOpen(false)
-                          }}
-                        >
-                          导出到移动端
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                          onClick={() => {
-                            handleImportClick()
-                            setMoreOpen(false)
-                          }}
-                        >
-                          导入数据
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                          onClick={() => {
-                            downloadGunplaImportTemplate()
-                            setMoreOpen(false)
-                          }}
-                        >
-                          下载导入模板
-                        </button>
-                        {platformCapabilities.supportsLogs ? (
-                          <button
-                            type="button"
-                            className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                            onClick={() => {
-                              openLogs()
-                              setMoreOpen(false)
-                            }}
-                          >
-                            日志
-                          </button>
-                        ) : null}
-                        {platformCapabilities.supportsAutoUpdate ? (
-                          <button
-                            type="button"
-                            className="rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.06]"
-                            onClick={() => {
-                              checkUpdates()
-                              setMoreOpen(false)
-                            }}
-                          >
-                            检查更新
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="hidden flex-wrap items-center gap-2 xl:flex">
-                    <button type="button" onClick={exportData} className={compactSecondaryButton}>
-                      导出完整数据
-                    </button>
-                    <button type="button" onClick={showPortableExportMessage} className={compactSecondaryButton}>
-                      导出到移动端
-                    </button>
-                    <button type="button" onClick={handleImportClick} className={compactSecondaryButton}>
-                      导入数据
-                    </button>
-                    <button
-                      type="button"
-                      onClick={downloadGunplaImportTemplate}
-                      className={compactSecondaryButton}
-                    >
-                      下载导入模板
-                    </button>
-                    {platformCapabilities.supportsLogs ? (
-                      <button type="button" onClick={openLogs} className={compactSecondaryButton}>
-                        日志
-                      </button>
-                    ) : null}
-                    {platformCapabilities.supportsAutoUpdate ? (
-                      <button type="button" onClick={checkUpdates} className={compactSecondaryButton}>
-                        检查更新
-                      </button>
-                    ) : null}
-                    {updateReady ? (
-                      <button
-                        type="button"
-                        onClick={installUpdate}
-                        className="app-btn-primary !rounded-full !px-4 !py-2"
-                      >
-                        立即安装
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+      <header className="dex-topbar-wrap">
+        <div className="dex-topbar">
+          <div className="dex-topbar-main">
+            <div className="dex-brand">
+              <img src={brandMark} alt="金屋藏胶 Logo" className="h-8 w-8 rounded" />
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-[0.28em] text-gray-400">{APP_ENGLISH_NAME}</div>
+                <div className="truncate text-base font-semibold text-gray-100">{APP_CHINESE_NAME}</div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 pt-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {utilityActions.map((action) => (
+            <div className="dex-search">
+              <input
+                type="text"
+                placeholder="搜索模型、编号、系列、标签"
+                value={filterState.searchText}
+                onChange={(event) => setFilterState((prev) => ({ ...prev, searchText: event.target.value }))}
+                className="app-input !h-9 !rounded-md !py-1.5"
+              />
+            </div>
+
+            <div className="dex-actions">
+              <div className="dex-segmented">
+                {typeTabs.map((tab) => (
                   <button
-                    key={action.key}
+                    key={tab.value}
                     type="button"
-                    onClick={action.onClick}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                    onClick={() => setFilterState((prev) => ({ ...prev, type: tab.value }))}
+                    className={filterState.type === tab.value ? 'dex-segmented-item active' : 'dex-segmented-item'}
                   >
-                    {action.label}
+                    {tab.label}
                   </button>
                 ))}
               </div>
 
-              <div className="rounded-full border border-white/10 bg-black/10 px-3.5 py-2 text-xs text-slate-300">
-                桌面端维护资料；通过「导出到移动端」生成 JSON，在手机浏览器导入浏览。
+              <button type="button" onClick={openAddModal} className="app-btn-primary !h-9 !rounded-md !px-3 !py-1.5 !text-xs">
+                新增模型
+              </button>
+
+              <div className="relative min-[1760px]:hidden">
+                <button type="button" onClick={() => setMoreOpen((open) => !open)} className={compactSecondaryButton} aria-expanded={moreOpen}>
+                  更多
+                </button>
+                {moreOpen ? (
+                  <div className="dex-modal-panel absolute right-0 z-50 mt-2 flex min-w-[12rem] flex-col overflow-hidden rounded-md p-1">
+                    <button
+                      type="button"
+                      className={menuItemClass}
+                      onClick={() => {
+                        exportData()
+                        setMoreOpen(false)
+                      }}
+                    >
+                      导出完整数据
+                    </button>
+                    <button
+                      type="button"
+                      className={menuItemClass}
+                      onClick={() => {
+                        showPortableExportMessage()
+                        setMoreOpen(false)
+                      }}
+                    >
+                      导出到移动端
+                    </button>
+                    <button
+                      type="button"
+                      className={menuItemClass}
+                      onClick={() => {
+                        handleImportClick()
+                        setMoreOpen(false)
+                      }}
+                    >
+                      导入数据
+                    </button>
+                    <button
+                      type="button"
+                      className={menuItemClass}
+                      onClick={() => {
+                        downloadGunplaImportTemplate()
+                        setMoreOpen(false)
+                      }}
+                    >
+                      下载导入模板
+                    </button>
+                    {platformCapabilities.supportsLogs ? (
+                      <button
+                        type="button"
+                        className={menuItemClass}
+                        onClick={() => {
+                          openLogs()
+                          setMoreOpen(false)
+                        }}
+                      >
+                        日志
+                      </button>
+                    ) : null}
+                    {platformCapabilities.supportsAutoUpdate ? (
+                      <button
+                        type="button"
+                        className={menuItemClass}
+                        onClick={() => {
+                          checkUpdates()
+                          setMoreOpen(false)
+                        }}
+                      >
+                        检查更新
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="hidden flex-wrap items-center gap-2 min-[1760px]:flex">
+                <button type="button" onClick={exportData} className={compactSecondaryButton}>
+                  导出完整数据
+                </button>
+                <button type="button" onClick={showPortableExportMessage} className={compactSecondaryButton}>
+                  导出到移动端
+                </button>
+                <button type="button" onClick={handleImportClick} className={compactSecondaryButton}>
+                  导入数据
+                </button>
+                <button type="button" onClick={downloadGunplaImportTemplate} className={compactSecondaryButton}>
+                  下载模板
+                </button>
+                {platformCapabilities.supportsLogs ? (
+                  <button type="button" onClick={openLogs} className={compactSecondaryButton}>
+                    日志
+                  </button>
+                ) : null}
+                {platformCapabilities.supportsAutoUpdate ? (
+                  <button type="button" onClick={checkUpdates} className={compactSecondaryButton}>
+                    检查更新
+                  </button>
+                ) : null}
+                {updateReady ? (
+                  <button type="button" onClick={installUpdate} className="app-btn-primary !h-9 !rounded-md !px-3 !py-1.5 !text-xs">
+                    立即安装
+                  </button>
+                ) : null}
               </div>
             </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,.xlsx,.xls"
-              onChange={handleImportChange}
-              className="hidden"
-            />
           </div>
+
+          <div className="dex-toolbar">
+            <div className="flex flex-wrap items-center gap-2">
+              {utilityActions.map((action) => (
+                <button key={action.key} type="button" onClick={action.onClick} className="theme-utility-chip rounded-md px-3 py-1.5 text-xs">
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,.xlsx,.xls"
+            onChange={handleImportChange}
+            className="hidden"
+          />
         </div>
       </header>
 
       {updateStatus ? (
-        <div className="px-4 pb-2 pt-2 md:px-6">
-          <div className="app-panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm text-slate-200">
+        <div className="px-4 pb-2">
+          <div className="theme-surface flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm theme-text-secondary">
             <span>{updateStatus}</span>
             {updateReady ? (
               <button
                 type="button"
                 onClick={installUpdate}
-                className="app-btn-primary !rounded-full !px-4 !py-2 !text-xs"
+                className="app-btn-primary !rounded-[14px] !px-4 !py-2 !text-xs"
               >
                 立即安装
               </button>

@@ -1,8 +1,10 @@
 {
   "name": "wj",
   "private": true,
-  "version": "2.1.22",
+  "version": "2.1.38",
+  "description": "金屋藏胶 / Gunpla Manager desktop collection manager",
   "type": "module",
+  "author": "hhf20",
   "repository": {
     "type": "git",
     "url": "https://github.com/hhf20/gunpla-manager.git"
@@ -11,6 +13,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node --test \"tests/*.test.js\"",
     "test:supabase": "node ./scripts/test-supabase.mjs",
     "preview": "vite preview",
     "electron": "electron .",
@@ -77,3 +80,4 @@
     }
   }
 }
+

@@ -5,6 +5,7 @@ import DetailDrawer from './components/DetailDrawer'
 import EditGunplaPage from './components/EditGunplaPage'
 import Header from './components/Header'
 import ManualLibraryModal from './components/ManualLibraryModal'
+import PriceTrendDetailPage from './components/PriceTrendDetailPage'
 import Sidebar from './components/Sidebar'
 import MainContent from './components/MainContent'
 import MobileDetailPage from './components/MobileDetailPage'
@@ -19,12 +20,12 @@ import { GunplaProvider, useGunpla } from './context/GunplaContext'
 import { useIsMobileLayout } from './hooks/useIsMobileLayout'
 
 function DesktopLayout() {
-  const { filteredGunplaList } = useGunpla()
+  const { filteredGunplaList, isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
 
   return (
-    <div className="relative z-10 flex min-h-screen flex-col bg-transparent text-zinc-100">
+    <div className="app-shell-dex">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <MainContent items={filteredGunplaList} />
       </div>
@@ -33,16 +34,19 @@ function DesktopLayout() {
       <TypeManagementModal />
       <StatsModal />
       <ManualLibraryModal />
+      <MobileFilterDrawer
+        isOpen={isMobileFilterDrawerOpen}
+        onClose={() => setMobileFilterDrawerOpen(false)}
+      />
     </div>
   )
 }
 
-/** 仅首页：详情/统计必须在顶层 Route 注册，否则宽屏走 DesktopLayout 时内层 Routes 不挂载，URL 变了页面不变 */
 function MobileLayout() {
   const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
 
   return (
-    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+    <div className="relative z-10 min-h-screen bg-transparent theme-text-primary">
       <MobileHomePage />
       <MobileBottomNav />
       <MobileFilterDrawer
@@ -56,7 +60,7 @@ function MobileLayout() {
 function MobileDetailPageWrapper() {
   const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
   return (
-    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+    <div className="relative z-10 min-h-screen bg-transparent theme-text-primary">
       <MobileDetailPage />
       <MobileFilterDrawer
         isOpen={isMobileFilterDrawerOpen}
@@ -69,7 +73,7 @@ function MobileDetailPageWrapper() {
 function MobileStatsPageWrapper() {
   const { isMobileFilterDrawerOpen, setMobileFilterDrawerOpen } = useGunpla()
   return (
-    <div className="relative z-10 min-h-screen bg-transparent text-zinc-100">
+    <div className="relative z-10 min-h-screen bg-transparent theme-text-primary">
       <MobileStatsPage />
       <MobileBottomNav />
       <MobileFilterDrawer
@@ -89,6 +93,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/edit/:id" element={<EditGunplaPage />} />
+      <Route path="/price-trend/:id" element={<PriceTrendDetailPage />} />
       <Route path="/model/:id" element={<MobileDetailPageWrapper />} />
       <Route path="/stats" element={<MobileStatsPageWrapper />} />
       <Route path="/*" element={<AppShell />} />
@@ -107,3 +112,4 @@ function App() {
 }
 
 export default App
+

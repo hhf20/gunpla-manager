@@ -16,7 +16,7 @@ function ImagePreviewModal({ isOpen, images, currentIndex, onClose, onPrev, onNe
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 transition ${
+      className={`dex-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 transition ${
         isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       onClick={onClose}
@@ -24,9 +24,18 @@ function ImagePreviewModal({ isOpen, images, currentIndex, onClose, onPrev, onNe
       <button
         onClick={(event) => {
           event.stopPropagation()
+          onClose()
+        }}
+        className="theme-overlay-action absolute right-6 top-6"
+      >
+        关闭
+      </button>
+      <button
+        onClick={(event) => {
+          event.stopPropagation()
           onPrev()
         }}
-        className="absolute left-6 rounded-full bg-zinc-800/80 px-3 py-2 text-white transition hover:brightness-110"
+        className="theme-overlay-action absolute left-6 top-1/2 -translate-y-1/2 rounded-full px-3 py-2"
       >
         ←
       </button>
@@ -41,7 +50,7 @@ function ImagePreviewModal({ isOpen, images, currentIndex, onClose, onPrev, onNe
           event.stopPropagation()
           onNext()
         }}
-        className="absolute right-6 rounded-full bg-zinc-800/80 px-3 py-2 text-white transition hover:brightness-110"
+        className="theme-overlay-action absolute right-6 top-1/2 -translate-y-1/2 rounded-full px-3 py-2"
       >
         →
       </button>

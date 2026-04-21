@@ -1,4 +1,4 @@
-export const ITEM_TYPE_OPTIONS = [
+﻿export const ITEM_TYPE_OPTIONS = [
   { label: '我的收藏', value: 'owned' },
   { label: '愿望清单', value: 'wishlist' },
 ]
@@ -10,7 +10,7 @@ export function createEmptyGunplaForm({ defaultReleaseType = '通贩', defaultPl
     type: 'owned',
     grade: '',
     series: '',
-    scale: '1/144',
+    scale: '',
     boxNumber: '',
     modelCode: '',
     name: '',
@@ -45,7 +45,7 @@ export function createGunplaFormFromItem(
     type: item.type === 'wishlist' ? 'wishlist' : 'owned',
     grade: item.grade || base.grade,
     series: item.series || base.series,
-    scale: item.scale || base.scale,
+    scale: item.scale || '',
     boxNumber: item.boxNumber || '',
     modelCode: item.modelCode || '',
     name: item.name || '',
@@ -73,7 +73,7 @@ export function gunplaFormToPayload(form) {
     type: form.type === 'wishlist' ? 'wishlist' : 'owned',
     grade: form.grade,
     series: form.series,
-    scale: form.scale.trim() || '1/144',
+    scale: form.scale.trim(),
     boxNumber: form.boxNumber.trim(),
     modelCode: form.modelCode.trim(),
     name: form.name.trim(),

@@ -1,12 +1,14 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+﻿import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import updater from 'electron-updater'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  lookupGunplaCoverImageInfo,
-  lookupGunplaReleasePrice,
-} from './releasePriceProviders/gunplaFandom.js'
+  lookupModelCoverImageInfo,
+  lookupModelCoverImageCandidates,
+  lookupModelCurrentPriceSnapshot,
+  lookupModelReleasePrice,
+} from './releasePriceProviders/index.js'
 
 const { autoUpdater } = updater
 
@@ -16,6 +18,7 @@ const __dirname = path.dirname(__filename)
 const isDev = !app.isPackaged
 const WIPE_ON_RELAUNCH_FLAG = '--wipe-user-data-on-launch'
 const userDataDir = app.getPath('userData')
+const wipeMarkerPath = path.join(userDataDir, '.wipe-pending')
 const dataDir = path.join(userDataDir, 'data')
 const imagesDir = path.join(dataDir, 'images')
 const dataFilePath = path.join(dataDir, 'data.json')
@@ -25,6 +28,7 @@ const rendererLogPath = path.join(logsDir, 'renderer.log')
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null
+let isRelaunchingForWipe = false
 
 async function safeRm(targetPath) {
   try {
@@ -66,6 +70,7 @@ const PDF_EXTS = new Set(['.pdf'])
 
 const WIKI_IMAGE_DOWNLOAD_HEADERS = {
   'User-Agent': 'GunplaManager/2.0 (Electron; wiki cover download)',
+  Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
 }
 
 function extFromMime(mime) {
@@ -78,19 +83,32 @@ function extFromMime(mime) {
 }
 
 /**
- * @param {{ downloadUrl: string, suggestedFileName: string }} info
+ * @param {{ downloadUrl: string, suggestedFileName: string, sourceUrl?: string }} info
  */
-async function downloadWikiCoverToLibrary(info) {
+async function downloadRemoteCoverToLibrary(info) {
   await ensureStorage()
+  const extraHeaders = {}
+  if (typeof info?.sourceUrl === 'string' && info.sourceUrl.startsWith('http')) {
+    extraHeaders.Referer = info.sourceUrl
+    try {
+      extraHeaders.Origin = new URL(info.sourceUrl).origin
+    } catch {
+      // ignore invalid source url
+    }
+  }
   const res = await fetch(info.downloadUrl, {
-    headers: WIKI_IMAGE_DOWNLOAD_HEADERS,
+    headers: { ...WIKI_IMAGE_DOWNLOAD_HEADERS, ...extraHeaders },
     signal: AbortSignal.timeout(25000),
     redirect: 'follow',
   })
   if (!res.ok) {
-    throw new Error(`下载图片 HTTP ${res.status}`)
+    throw new Error(`下载图片失败，HTTP ${res.status}`)
   }
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
   const buf = Buffer.from(await res.arrayBuffer())
+  if (!contentType.startsWith('image/')) {
+    throw new Error(`封面地址返回的不是图片内容（${contentType || 'unknown'}）`)
+  }
   if (buf.length < 400 || buf.length > 25 * 1024 * 1024) {
     throw new Error('图片大小异常')
   }
@@ -139,6 +157,32 @@ async function wipeUserDataDirectories() {
   }
 
   return errors
+}
+
+async function markWipePending() {
+  try {
+    await fs.mkdir(userDataDir, { recursive: true })
+    await fs.writeFile(wipeMarkerPath, new Date().toISOString(), 'utf-8')
+  } catch {
+    // ignore
+  }
+}
+
+async function clearWipeMarker() {
+  try {
+    await fs.rm(wipeMarkerPath, { force: true })
+  } catch {
+    // ignore
+  }
+}
+
+async function hasPendingWipeMarker() {
+  try {
+    await fs.access(wipeMarkerPath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function appendLog(filePath, level, message) {
@@ -330,10 +374,10 @@ ipcMain.handle('delete-image', async (_, imagePath) => {
   }
 })
 
-/** 读取资料库目录内图片为 base64，供上传到云端（路径校验防目录穿越） */
+/** 璇诲彇璧勬枡搴撶洰褰曞唴鍥剧墖涓?base64锛屼緵涓婁紶鍒颁簯绔紙璺緞鏍￠獙闃茬洰褰曠┛瓒婏級 */
 ipcMain.handle('read-image-buffer', async (_, fileUrl) => {
   if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.startsWith('file://')) {
-    return { ok: false, message: '仅支持本机 file:// 图片' }
+    return { ok: false, message: '浠呮敮鎸佹湰鏈?file:// 鍥剧墖' }
   }
   await ensureStorage()
   let filePath
@@ -377,14 +421,14 @@ ipcMain.handle('import-cover-folder', async (_, folderPath) => {
     const items = await Promise.all(
       files.map(async (filePath, idx) => {
         const imageUrl = await copyImageToLibrary(filePath)
-        // folder1: 相对导入根目录的一级子文件夹（只展示第一层树形结构）
+        // folder1: 鐩稿瀵煎叆鏍圭洰褰曠殑涓€绾у瓙鏂囦欢澶癸紙鍙睍绀虹涓€灞傛爲褰㈢粨鏋勶級
         const ext = path.extname(filePath)
         const relPath = path.relative(abs, filePath)
         const parts = relPath.split(path.sep)
         const folder1 = parts.length >= 2 ? parts[0] : ''
         const filename = path.basename(filePath, ext)
         const name = folder1 ? `${folder1}/${filename}` : filename
-        // 图片编号：与 Excel「模型编号」对齐，使用源文件名（不含扩展名），不含文件夹前缀
+        // 鍥剧墖缂栧彿锛氫笌 Excel銆屾ā鍨嬬紪鍙枫€嶅榻愶紝浣跨敤婧愭枃浠跺悕锛堜笉鍚墿灞曞悕锛夛紝涓嶅惈鏂囦欢澶瑰墠缂€
         const imageCode = filename
         return {
           id: `${now}_${idx}`,
@@ -404,7 +448,7 @@ ipcMain.handle('import-cover-folder', async (_, folderPath) => {
 })
 
 ipcMain.handle('list-pdf-files', async (_, folderPath, recursive = true) => {
-  if (!folderPath) return { ok: false, message: '未选择目录', data: [] }
+  if (!folderPath) return { ok: false, message: '鏈€夋嫨鐩綍', data: [] }
   try {
     const abs = path.resolve(folderPath)
     const pdfPaths = await walkPdfs(abs, recursive)
@@ -431,7 +475,7 @@ ipcMain.handle('list-pdf-files', async (_, folderPath, recursive = true) => {
   } catch (err) {
     return {
       ok: false,
-      message: err?.message || '列出 PDF 失败',
+      message: err?.message || '鍒楀嚭 PDF 澶辫触',
       data: [],
     }
   }
@@ -465,78 +509,6 @@ ipcMain.handle('get-logs-path', async () => {
   return { ok: true, logsDir, mainLogPath, rendererLogPath }
 })
 
-ipcMain.handle('update-check', async () => {
-  if (isDev) {
-    return { ok: false, message: '开发模式不支持自动更新（请打包后测试）' }
-  }
-  try {
-    const res = await autoUpdater.checkForUpdates()
-    return { ok: true, updateInfo: res?.updateInfo || null }
-  } catch (err) {
-    return { ok: false, message: err?.message || String(err) }
-  }
-})
-
-ipcMain.handle('update-quit-and-install', async () => {
-  if (isDev) {
-    return { ok: false, message: '开发模式不支持安装更新' }
-  }
-  try {
-    autoUpdater.quitAndInstall()
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, message: err?.message || String(err) }
-  }
-})
-
-ipcMain.handle('wipe-user-data', async () => {
-  if (isDev) {
-    return { ok: false, message: '开发模式不建议清空（请打包后再测试）' }
-  }
-  try {
-    // 尽量减少占用，先关闭窗口
-    for (const w of BrowserWindow.getAllWindows()) {
-      try {
-        w.hide()
-      } catch {
-        // ignore
-      }
-      try {
-        w.destroy()
-      } catch {
-        // ignore
-      }
-    }
-
-    const targets = [
-      dataDir,
-      logsDir,
-      path.join(userDataDir, 'Cache'),
-      path.join(userDataDir, 'Code Cache'),
-      path.join(userDataDir, 'GPUCache'),
-      path.join(userDataDir, 'Local Storage'),
-      path.join(userDataDir, 'Session Storage'),
-      path.join(userDataDir, 'IndexedDB'),
-    ]
-
-    const errors = []
-    for (const t of targets) {
-      const res = await safeRm(t)
-      if (!res.ok) errors.push({ path: t, message: res.message })
-    }
-
-    if (errors.length > 0) {
-      return { ok: false, message: '部分文件仍在占用，清空未完成', errors }
-    }
-
-    app.relaunch()
-    app.exit(0)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, message: err?.message || String(err) }
-  }
-})
-
 ipcMain.removeHandler('wipe-user-data')
 ipcMain.handle('wipe-user-data', async () => {
   if (isDev) {
@@ -544,46 +516,49 @@ ipcMain.handle('wipe-user-data', async () => {
   }
 
   try {
-    for (const w of BrowserWindow.getAllWindows()) {
-      try {
-        w.hide()
-      } catch {
-        // ignore
-      }
-      try {
-        w.destroy()
-      } catch {
-        // ignore
-      }
-    }
+    await markWipePending()
+    isRelaunchingForWipe = true
 
     const relaunchArgs = process.argv.filter((arg) => arg !== WIPE_ON_RELAUNCH_FLAG)
     relaunchArgs.push(WIPE_ON_RELAUNCH_FLAG)
 
-    setTimeout(() => {
-      app.relaunch({ args: relaunchArgs })
-      app.exit(0)
-    }, 150)
+    app.relaunch({ args: relaunchArgs })
 
-    return { ok: true, restarting: true }
+    setTimeout(() => {
+      app.quit()
+    }, 60)
+
+    setTimeout(() => {
+      app.exit(0)
+    }, 420)
+
+    return { ok: true, restarting: true, message: '数据清理已开始，应用即将重启。' }
   } catch (err) {
+    isRelaunchingForWipe = false
     return { ok: false, message: err?.message || String(err) }
   }
 })
 
 ipcMain.handle('fetch-gunpla-release-price', async (_, payload) => {
   const p = payload && typeof payload === 'object' ? payload : {}
-  return lookupGunplaReleasePrice(p)
+  const result = await lookupModelReleasePrice(p)
+  if (!result?.ok && result?.provider === 'gunpla-fandom' && result?.diagnostic) {
+    logMain('warn', `gunpla-fandom release lookup diagnostic: ${JSON.stringify(result.diagnostic)}`)
+  }
+  return result
 })
 
 ipcMain.handle('fetch-gunpla-cover-image', async (_, payload) => {
   const p = payload && typeof payload === 'object' ? payload : {}
   try {
-    const info = await lookupGunplaCoverImageInfo(p)
+    const info = await lookupModelCoverImageInfo(p)
     if (!info.ok) {
+      if (info?.provider === 'gunpla-fandom' && info?.diagnostic) {
+        logMain('warn', `gunpla-fandom cover lookup diagnostic: ${JSON.stringify(info.diagnostic)}`)
+      }
       return info
     }
-    const imageUrl = await downloadWikiCoverToLibrary(info)
+    const imageUrl = await downloadRemoteCoverToLibrary(info)
     return {
       ok: true,
       imageUrl,
@@ -598,9 +573,46 @@ ipcMain.handle('fetch-gunpla-cover-image', async (_, payload) => {
   }
 })
 
+ipcMain.handle('search-gunpla-cover-images', async (_, payload) => {
+  const p = payload && typeof payload === 'object' ? payload : {}
+  const result = await lookupModelCoverImageCandidates(p)
+  if (!result?.ok && result?.provider === 'gunpla-fandom' && result?.diagnostic) {
+    logMain('warn', `gunpla-fandom cover search diagnostic: ${JSON.stringify(result.diagnostic)}`)
+  }
+  return result
+})
+
+ipcMain.handle('save-gunpla-cover-candidate', async (_, candidate) => {
+  const info = candidate && typeof candidate === 'object' ? candidate : {}
+  if (!info?.downloadUrl) {
+    return { ok: false, message: '鏈彁渚涘彲淇濆瓨鐨勫皝闈㈠湴鍧€' }
+  }
+
+  try {
+    const imageUrl = await downloadRemoteCoverToLibrary(info)
+    return {
+      ok: true,
+      imageUrl,
+      sourceUrl: info.sourceUrl || '',
+      provider: info.provider || '',
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      message: e?.message || String(e),
+    }
+  }
+})
+
+ipcMain.handle('fetch-gunpla-price-snapshot', async (_, payload) => {
+  const p = payload && typeof payload === 'object' ? payload : {}
+  return lookupModelCurrentPriceSnapshot(p)
+})
+
 app.whenReady().then(async () => {
-  if (process.argv.includes(WIPE_ON_RELAUNCH_FLAG)) {
+  if (process.argv.includes(WIPE_ON_RELAUNCH_FLAG) || (await hasPendingWipeMarker())) {
     const errors = await wipeUserDataDirectories()
+    await clearWipeMarker()
     if (errors.length > 0) {
       await appendLog(mainLogPath, 'error', `wipe user data failed: ${JSON.stringify(errors)}`)
     }
@@ -618,6 +630,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  if (isRelaunchingForWipe) return
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -628,3 +641,4 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   logMain('error', `unhandledRejection: ${reason?.stack || reason?.message || String(reason)}`)
 })
+

@@ -25,5 +25,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('list-pdf-files', folderPath, recursive),
   fetchGunplaReleasePrice: (payload) =>
     ipcRenderer.invoke('fetch-gunpla-release-price', payload),
+  searchGunplaCoverImages: (payload) =>
+    ipcRenderer.invoke('search-gunpla-cover-images', payload),
+  saveGunplaCoverCandidate: (candidate) =>
+    ipcRenderer.invoke('save-gunpla-cover-candidate', candidate),
   fetchGunplaCoverImage: (payload) => ipcRenderer.invoke('fetch-gunpla-cover-image', payload),
+  fetchGunplaPriceSnapshot: (payload) =>
+    ipcRenderer.invoke('fetch-gunpla-price-snapshot', payload),
 })

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { downloadJsonFile, readJsonFile } from '../utils/localStorage'
 import { persistWebPayload, readWebPayload } from '../utils/webIndexedDbStorage'
 import { normalizeMatchKey, parseGunplaExcel } from '../utils/excelImport'
@@ -7,11 +7,13 @@ import {
   DEFAULT_CATEGORY_CONFIG,
   DEFAULT_CONFIG_TREE,
   DEFAULT_DATA,
+  DEFAULT_PRICE_TREND,
   DEFAULT_THEME,
   FILTER_INITIAL_STATE,
   UI_INITIAL_STATE,
   mergeMissingConfigTreeValues,
   normalizeCoverItem,
+  normalizePriceTrendState,
   normalizeStoredItem,
   parseConfigTree,
   parseFilterState,
@@ -20,6 +22,7 @@ import {
   sortGunplaListLatestFirst,
   stemFromDisplayName,
 } from '../utils/gunplaAppData'
+import { filterGunplaList } from '../utils/gunplaSearch'
 import { getPlatformCapabilities } from '../utils/platformCapabilities'
 import {
   addNode,
@@ -30,47 +33,27 @@ import {
   hasLabel,
   flattenLabels,
   moveNode,
+  reorderNode,
   removeNode,
   renameNode,
   setNodeLogo,
 } from '../utils/configTree'
+import {
+  getConfigUsageCount as getConfigUsageCountFromList,
+  renameConfigValueInItem,
+  replaceConfigSubtreeValuesInItem,
+} from '../utils/gunplaConfigBindings'
+import {
+  isImageReferencedByAnyGunpla,
+  mergeIncomingCovers,
+  partitionCoverTargetsByUsage,
+} from '../utils/coverLibraryState'
+import { createPortableExportPayload } from '../utils/gunplaPortable'
 
 const GunplaContext = createContext(null)
 
-export function filterGunplaList(gunplaList, filterState) {
-  return gunplaList.filter((item) => {
-    if (filterState.type !== 'all' && item.type !== filterState.type) return false
-
-    const search = filterState.searchText.trim().toLowerCase()
-    if (search && !item.name.toLowerCase().includes(search)) return false
-
-    if (filterState.grades.length > 0 && !filterState.grades.includes(item.grade)) {
-      return false
-    }
-
-    if (filterState.status.length > 0 && !filterState.status.includes(item.status)) {
-      return false
-    }
-    if (
-      filterState.buildStatuses.length > 0 &&
-      !filterState.buildStatuses.includes(item.buildStatus)
-    ) {
-      return false
-    }
-
-    if (filterState.series.length > 0 && !filterState.series.includes(item.series)) {
-      return false
-    }
-
-    if (
-      filterState.tags.length > 0 &&
-      !filterState.tags.every((tag) => Array.isArray(item.tags) && item.tags.includes(tag))
-    ) {
-      return false
-    }
-
-    return true
-  })
+function sanitizePriceTrendDraft(trend) {
+  return normalizePriceTrendState(trend || DEFAULT_PRICE_TREND)
 }
 export function GunplaProvider({ children }) {
   const platformCapabilities = useMemo(() => getPlatformCapabilities(), [])
@@ -241,20 +224,20 @@ export function GunplaProvider({ children }) {
     }
   }
 
-  const openAddModal = () => {
+  const openAddModal = useCallback(() => {
     setEditingGunpla(null)
     setIsModalOpen(true)
-  }
+  }, [])
 
-  const openEditModal = (item) => {
+  const openEditModal = useCallback((item) => {
     setEditingGunpla(item)
     setIsModalOpen(true)
-  }
+  }, [])
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setIsModalOpen(false)
     setEditingGunpla(null)
-  }
+  }, [])
 
   const openDetail = (id) => {
     setSelectedGunplaId(id)
@@ -266,23 +249,26 @@ export function GunplaProvider({ children }) {
   }
   const resetFilter = () => setFilterState(FILTER_INITIAL_STATE)
 
-  const getFieldNameByConfigKey = (key) => {
-    if (key === 'grade') return 'grade'
-    if (key === 'series') return 'series'
-    if (key === 'customTags') return 'tags'
-    if (key === 'buildStatusConfig') return 'buildStatus'
-    if (key === 'releaseTypes') return 'releaseType'
-    if (key === 'purchasePlatforms') return 'purchasePlatform'
-    return ''
+  const savePriceTrendForGunpla = (id, nextTrend) => {
+    setGunplaList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              priceTrend: sanitizePriceTrendDraft({
+                ...nextTrend,
+                enabled: true,
+              }),
+            }
+          : item,
+      ),
+    )
+
+    return { ok: true, message: '价格趋势已更新' }
   }
 
   const getConfigUsageCount = (key, value) => {
-    const field = getFieldNameByConfigKey(key)
-    if (!field || !value) return 0
-    if (field === 'tags') {
-      return gunplaList.filter((item) => Array.isArray(item.tags) && item.tags.includes(value)).length
-    }
-    return gunplaList.filter((item) => item[field] === value).length
+    return getConfigUsageCountFromList(gunplaList, key, value)
   }
 
   const getConfigNodeUsageCount = (key, nodeId) => {
@@ -344,25 +330,7 @@ export function GunplaProvider({ children }) {
     setConfigTree((prev) => ({ ...prev, [key]: renameNode(prev[key] || [], nodeId, label) }))
 
     if (oldLabel !== label) {
-      setGunplaList((prev) =>
-        prev.map((item) => {
-          if (key === 'grade' && item.grade === oldLabel) return { ...item, grade: label }
-          if (key === 'series' && item.series === oldLabel) return { ...item, series: label }
-          if (key === 'customTags' && Array.isArray(item.tags) && item.tags.includes(oldLabel)) {
-            return { ...item, tags: item.tags.map((tag) => (tag === oldLabel ? label : tag)) }
-          }
-          if (key === 'buildStatusConfig' && item.buildStatus === oldLabel) {
-            return { ...item, buildStatus: label }
-          }
-          if (key === 'releaseTypes' && item.releaseType === oldLabel) {
-            return { ...item, releaseType: label }
-          }
-          if (key === 'purchasePlatforms' && item.purchasePlatform === oldLabel) {
-            return { ...item, purchasePlatform: label }
-          }
-          return item
-        }),
-      )
+      setGunplaList((prev) => prev.map((item) => renameConfigValueInItem(item, key, oldLabel, label)))
     }
     return { ok: true, message: '重命名成功' }
   }
@@ -382,26 +350,7 @@ export function GunplaProvider({ children }) {
     if (usageCount > 0 && nextReplacement) {
       const set = new Set(labels)
       setGunplaList((prev) =>
-        prev.map((item) => {
-          if (key === 'grade' && set.has(item.grade)) return { ...item, grade: nextReplacement }
-          if (key === 'series' && set.has(item.series)) return { ...item, series: nextReplacement }
-          if (key === 'customTags' && Array.isArray(item.tags)) {
-            return {
-              ...item,
-              tags: item.tags.map((tag) => (set.has(tag) ? nextReplacement : tag)),
-            }
-          }
-          if (key === 'buildStatusConfig' && set.has(item.buildStatus)) {
-            return { ...item, buildStatus: nextReplacement }
-          }
-          if (key === 'releaseTypes' && set.has(item.releaseType)) {
-            return { ...item, releaseType: nextReplacement }
-          }
-          if (key === 'purchasePlatforms' && set.has(item.purchasePlatform)) {
-            return { ...item, purchasePlatform: nextReplacement }
-          }
-          return item
-        }),
+        prev.map((item) => replaceConfigSubtreeValuesInItem(item, key, set, nextReplacement)),
       )
     }
 
@@ -432,8 +381,18 @@ export function GunplaProvider({ children }) {
     }))
     return { ok: true }
   }
-  const getConfigTree = (key) => configTree[key] || []
-  const getConfigSelectOptions = (key) => buildOptions(configTree[key] || [])
+  const reorderConfigNode = (key, nodeId, targetNodeId, placement) => {
+    if (!['before', 'after'].includes(placement)) {
+      return { ok: false, message: '无效的拖动位置' }
+    }
+    setConfigTree((prev) => ({
+      ...prev,
+      [key]: reorderNode(prev[key] || [], nodeId, targetNodeId, placement),
+    }))
+    return { ok: true }
+  }
+  const getConfigTree = useCallback((key) => configTree[key] || [], [configTree])
+  const getConfigSelectOptions = useCallback((key) => buildOptions(configTree[key] || []), [configTree])
 
   const exportData = () => {
     const data = {
@@ -452,57 +411,15 @@ export function GunplaProvider({ children }) {
   }
 
   const exportPortableData = async () => {
-    const cleanPortableUrl = (url) => {
-      const value = String(url || '').trim()
-      if (!value) return ''
-      if (/^(https?:|data:|blob:)/i.test(value)) return value
-      return ''
-    }
-
-    const toPortableImageUrl = async (url) => {
-      const cleaned = cleanPortableUrl(url)
-      if (cleaned) return cleaned
-
-      const value = String(url || '').trim()
-      if (!value || !value.startsWith('file://') || !window.api?.readImageBuffer) return ''
-
-      try {
-        const result = await window.api.readImageBuffer(value)
-        if (!result?.ok || !result?.base64) return ''
-        const ext = String(result.ext || '.png').replace(/^\./, '').toLowerCase()
-        const mime = ext === 'jpg' ? 'jpeg' : ext
-        return `data:image/${mime};base64,${result.base64}`
-      } catch {
-        return ''
-      }
-    }
-
-    const data = {
-      gunplaList: await Promise.all(
-        gunplaList.map(async (item) => ({
-          ...item,
-          coverImage: await toPortableImageUrl(item.coverImage),
-          buildImages: [],
-          boxImages: [],
-        })),
-      ),
-      coverLibrary: await Promise.all(
-        coverLibrary.map(async (item) => ({
-          ...item,
-          imageUrl: await toPortableImageUrl(item.imageUrl),
-        })),
-      ),
+    const data = await createPortableExportPayload({
+      gunplaList,
+      coverLibrary,
       configTree,
       categoryConfig,
       buildStatusConfig,
-      theme: {
-        backgroundImage: '',
-        backgroundOpacity: theme.backgroundOpacity,
-      },
-      exportedAt: new Date().toISOString(),
-      version: 1,
-      portable: true,
-    }
+      theme,
+      readImageBuffer: window.api?.readImageBuffer,
+    })
     const timestamp = new Date().toISOString().slice(0, 10)
     downloadJsonFile(`gunpla-manager-mobile-${timestamp}.json`, data)
     return { ok: true, message: '已导出移动端数据包' }
@@ -676,11 +593,7 @@ export function GunplaProvider({ children }) {
     if (!res?.ok) return { ok: false, message: res?.message || '社区封面' }
 
     const incoming = Array.isArray(res.items) ? res.items.map(normalizeCoverItem).filter(Boolean) : []
-    setCoverLibrary((prev) => {
-      const existingOriginal = new Set(prev.map((x) => x.originalPath).filter(Boolean))
-      const next = incoming.filter((x) => !x.originalPath || !existingOriginal.has(x.originalPath))
-      return [...next, ...prev]
-    })
+    setCoverLibrary((prev) => mergeIncomingCovers(prev, incoming))
 
     return { ok: true, message: res.message || `已导入 ${incoming.length} 张封面` }
   }
@@ -711,6 +624,10 @@ export function GunplaProvider({ children }) {
     setTheme((prev) => parseTheme({ ...prev, backgroundImage: '' }))
   }
 
+  const setThemePreset = (preset) => {
+    setTheme((prev) => parseTheme({ ...prev, preset }))
+  }
+
   const setCoverImageCode = (id, nextCode) => {
     const imageCode = (nextCode || '').trim()
     if (!imageCode) return { ok: false, message: '图片编号不能为空' }
@@ -737,13 +654,7 @@ export function GunplaProvider({ children }) {
     return { ok: true, message: '封面已删除' }
   }
 
-  const isImageReferenced = (imageUrl) =>
-    gunplaList.some((g) => {
-      if (g.coverImage === imageUrl) return true
-      if (Array.isArray(g.buildImages) && g.buildImages.includes(imageUrl)) return true
-      if (Array.isArray(g.boxImages) && g.boxImages.includes(imageUrl)) return true
-      return false
-    })
+  const isImageReferenced = (imageUrl) => isImageReferencedByAnyGunpla(gunplaList, imageUrl)
 
   const deleteCoversBulk = async (ids) => {
     const idSet = new Set((ids || []).filter(Boolean))
@@ -756,12 +667,7 @@ export function GunplaProvider({ children }) {
       return { ok: false, removed: 0, skipped: 0, message: '未找到要删除的封面' }
     }
 
-    const toDelete = []
-    const skipped = []
-    for (const cover of targets) {
-      if (isImageReferenced(cover.imageUrl)) skipped.push(cover)
-      else toDelete.push(cover)
-    }
+    const { removable: toDelete, referenced: skipped } = partitionCoverTargetsByUsage(targets, gunplaList)
 
     if (toDelete.length === 0) {
       return {
@@ -797,7 +703,7 @@ export function GunplaProvider({ children }) {
     if (coverLibrary.length === 0) {
       return { ok: false, removed: 0, message: '当前没有任何封面' }
     }
-    const unused = coverLibrary.filter((c) => !isImageReferenced(c.imageUrl))
+    const unused = coverLibrary.filter((c) => !isImageReferencedByAnyGunpla(gunplaList, c.imageUrl))
     if (unused.length === 0) {
       return { ok: false, removed: 0, message: '没有可清理的未引用封面' }
     }
@@ -872,7 +778,18 @@ export function GunplaProvider({ children }) {
             ...prev,
             sidebarWidth: Math.min(420, Math.max(248, Number(width) || 288)),
           })),
+        setHeaderCollapsed: (collapsed) =>
+          setUiState((prev) => ({
+            ...prev,
+            headerCollapsed: Boolean(collapsed),
+          })),
+        setSidebarCollapsed: (collapsed) =>
+          setUiState((prev) => ({
+            ...prev,
+            sidebarCollapsed: Boolean(collapsed),
+          })),
         theme,
+        setThemePreset,
         setThemeOpacity,
         setThemeBackgroundFromFile,
         clearThemeBackground,
@@ -922,6 +839,7 @@ export function GunplaProvider({ children }) {
         addConfigNode,
         renameConfigNode,
         moveConfigNode,
+        reorderConfigNode,
         safeRemoveConfigNode,
         getConfigNodeUsageCount,
         setConfigNodeLogoFromFile,
@@ -929,6 +847,7 @@ export function GunplaProvider({ children }) {
         removeBuildStatus,
         exportData,
         exportPortableData,
+        savePriceTrendForGunpla,
         importData,
         importPortableData,
         importExcel,

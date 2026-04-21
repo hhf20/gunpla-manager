@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useGunpla } from '../context/GunplaContext'
 import {
-  fetchGunplaCoverImageFromMain,
+  COVER_PROVIDER_OPTIONS,
   fetchGunplaReleasePriceFromMain,
+  saveGunplaCoverCandidateFromMain,
+  searchGunplaCoverImagesFromMain,
 } from '../services/releasePriceLookup'
+import CoverCandidatePicker from './CoverCandidatePicker'
 import {
   createGunplaFormFromItem,
   gunplaFormToPayload,
@@ -14,12 +17,12 @@ import {
 } from '../utils/gunplaForm'
 
 const inputClass = 'app-input !rounded-2xl !py-2.5'
-const sectionClass = 'rounded-[26px] border border-white/10 bg-black/10 p-4 md:p-5'
+const legacySectionClass = 'theme-surface rounded-[26px] p-4 md:p-5'
 
 function ImageGrid({ images, onRemove }) {
   if (!images.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-slate-500">
+      <div className="theme-surface-soft rounded-2xl border border-dashed px-4 py-6 text-center text-xs theme-text-muted">
         暂无图片
       </div>
     )
@@ -28,12 +31,12 @@ function ImageGrid({ images, onRemove }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {images.map((img, index) => (
-        <div key={`${img}-${index}`} className="group relative overflow-hidden rounded-2xl bg-slate-950/70">
+        <div key={`${img}-${index}`} className="group relative overflow-hidden rounded-2xl theme-surface-elevated">
           <img src={img} alt="" className="h-24 w-full object-contain" />
           <button
             type="button"
             onClick={() => onRemove(index)}
-            className="absolute right-2 top-2 rounded-lg bg-black/65 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100"
+            className="theme-overlay-action absolute right-2 top-2 opacity-0 group-hover:opacity-100"
           >
             删除
           </button>
@@ -46,8 +49,14 @@ function ImageGrid({ images, onRemove }) {
 function EditGunplaPage() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const { gunplaList, updateGunpla, categoryConfig, getConfigSelectOptions, openCoverLibrary } =
-    useGunpla()
+  const {
+    gunplaList,
+    updateGunpla,
+    categoryConfig,
+    getConfigSelectOptions,
+    openCoverLibrary,
+  } = useGunpla()
+
   const target = useMemo(
     () => gunplaList.find((item) => String(item.id) === String(id)),
     [gunplaList, id],
@@ -56,9 +65,15 @@ function EditGunplaPage() {
   const [form, setForm] = useState(null)
   const [releasePriceLookupBusy, setReleasePriceLookupBusy] = useState(false)
   const [coverImageLookupBusy, setCoverImageLookupBusy] = useState(false)
+  const [coverCandidateSaveBusy, setCoverCandidateSaveBusy] = useState(false)
+  const [coverProviderHint, setCoverProviderHint] = useState('auto')
+  const [coverCandidates, setCoverCandidates] = useState([])
+  const [isCoverCandidateOpen, setIsCoverCandidateOpen] = useState(false)
   const coverInputRef = useRef(null)
   const buildInputRef = useRef(null)
   const boxInputRef = useRef(null)
+  const sectionClass = legacySectionClass
+  const mediaGridClass = 'grid gap-5 xl:grid-cols-[1.2fr_0.8fr]'
 
   const buildStatusOptions = useMemo(
     () => getConfigSelectOptions('buildStatusConfig'),
@@ -84,6 +99,7 @@ function EditGunplaPage() {
     if (!next.buildStatus) next.buildStatus = buildStatusOptions[0]?.value || ''
     if (!next.series) next.series = seriesOptions[0]?.value || ''
     if (!next.grade) next.grade = gradeOptions[0]?.value || ''
+    setCoverProviderHint('auto')
     setForm(next)
   }, [
     target,
@@ -103,7 +119,7 @@ function EditGunplaPage() {
     const name = form.name.trim()
     const modelCode = form.modelCode.trim()
     if (!name && !modelCode) {
-      window.alert('请先填写名称或模型编号。')
+      window.alert('请先填写名称或机体编号。')
       return
     }
 
@@ -113,6 +129,8 @@ function EditGunplaPage() {
         name,
         modelCode,
         grade: form.grade,
+        series: form.series,
+        boxNumber: form.boxNumber,
       })
       if (result.ok && result.releasePrice != null) {
         setField('releasePrice', String(result.releasePrice))
@@ -131,26 +149,44 @@ function EditGunplaPage() {
     const name = form.name.trim()
     const modelCode = form.modelCode.trim()
     if (!name && !modelCode) {
-      window.alert('请先填写名称或模型编号。')
+      window.alert('请先填写名称或机体编号。')
       return
     }
 
     setCoverImageLookupBusy(true)
     try {
-      const result = await fetchGunplaCoverImageFromMain({
+      const result = await searchGunplaCoverImagesFromMain({
         name,
         modelCode,
         grade: form.grade,
+        series: form.series,
+        boxNumber: form.boxNumber,
+        providerHint: coverProviderHint === 'auto' ? '' : coverProviderHint,
       })
-      if (result.ok && result.imageUrl) {
-        setField('coverImage', result.imageUrl)
-        const sourceLine = result.sourceUrl ? `\n来源：${result.sourceUrl}` : ''
-        window.alert(`已从 Gunpla Wiki 获取盒绘并保存到本地封面库。${sourceLine}`)
+      if (result.ok && Array.isArray(result.candidates) && result.candidates.length > 0) {
+        setCoverCandidates(result.candidates)
+        setIsCoverCandidateOpen(true)
       } else {
         window.alert(result.message || '获取封面失败。')
       }
     } finally {
       setCoverImageLookupBusy(false)
+    }
+  }
+
+  const handleConfirmCoverCandidate = async (candidate) => {
+    setCoverCandidateSaveBusy(true)
+    try {
+      const result = await saveGunplaCoverCandidateFromMain(candidate)
+      if (result.ok && result.imageUrl) {
+        setField('coverImage', result.imageUrl)
+        setIsCoverCandidateOpen(false)
+        setCoverCandidates([])
+      } else {
+        window.alert(result.message || '保存封面失败。')
+      }
+    } finally {
+      setCoverCandidateSaveBusy(false)
     }
   }
 
@@ -185,8 +221,8 @@ function EditGunplaPage() {
 
   if (!target || !form) {
     return (
-      <main className="relative z-10 min-h-screen bg-transparent p-6 text-slate-100">
-        <div className="app-panel-strong mx-auto max-w-3xl rounded-[32px] p-8 text-center text-slate-300">
+      <main className="relative z-10 min-h-screen bg-transparent p-6">
+        <div className="dex-modal-panel mx-auto max-w-3xl rounded-[8px] p-8 text-center theme-text-secondary">
           未找到对应的模型数据。
         </div>
       </main>
@@ -196,19 +232,15 @@ function EditGunplaPage() {
   const desktopOnlyHint = !window.api?.saveImage
 
   return (
-    <main className="relative z-10 min-h-screen bg-transparent p-4 md:p-6 text-slate-100">
-      <div className="app-panel-strong relative mx-auto flex h-[calc(100vh-2rem)] max-h-[960px] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] md:h-[calc(100vh-3rem)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,212,255,0.14),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.03),transparent_46%)]" />
-
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-white/10 px-5 pb-4 pt-5">
+    <main className="relative z-10 min-h-screen bg-transparent p-4 md:p-6">
+      <div className="dex-modal-panel mx-auto flex h-[calc(100vh-2rem)] max-h-[960px] w-full max-w-6xl flex-col overflow-hidden rounded-[8px] md:h-[calc(100vh-3rem)]">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="border-b theme-border px-5 pb-4 pt-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.32em] text-sky-200/70">Collection Entry</div>
-                <h2 className="mt-2 text-2xl font-semibold text-white">编辑模型</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  延续新增弹窗的资料卡布局，让长表单在半屏和高缩放下也保持稳定可编辑。
-                </p>
+                <div className="text-[11px] uppercase tracking-[0.32em] theme-text-muted">Collection Entry</div>
+                <h2 className="mt-2 text-2xl font-semibold theme-text-primary">编辑模型</h2>
+                <p className="mt-1 text-sm theme-text-secondary">延续统一 Dex 录入布局，让长表单在高密度界面下仍稳定可编辑。</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {desktopOnlyHint ? (
@@ -224,13 +256,13 @@ function EditGunplaPage() {
           </div>
 
           <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="app-scroll-area min-h-0 flex-1 overflow-y-auto px-5 py-5">
               <div className="space-y-5">
                 <section className={sectionClass}>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Profile</div>
-                      <h4 className="mt-1 text-base font-semibold text-white">基础信息</h4>
+                      <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">Profile</div>
+                      <h4 className="mt-1 text-base font-semibold theme-text-primary">基础信息</h4>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {ITEM_TYPE_OPTIONS.map((option) => (
@@ -238,8 +270,8 @@ function EditGunplaPage() {
                           key={option.value}
                           className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${
                             form.type === option.value
-                              ? 'border-cyan-300/30 bg-cyan-400/15 text-cyan-100'
-                              : 'border-white/10 bg-white/[0.03] text-slate-300'
+                              ? 'theme-choice-chip theme-choice-chip--active'
+                              : 'theme-choice-chip'
                           }`}
                         >
                           <input
@@ -320,8 +352,8 @@ function EditGunplaPage() {
                 <section className={sectionClass}>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Market</div>
-                      <h4 className="mt-1 text-base font-semibold text-white">价格与渠道</h4>
+                      <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">Market</div>
+                      <h4 className="mt-1 text-base font-semibold theme-text-primary">价格与渠道</h4>
                     </div>
                     <button
                       type="button"
@@ -404,7 +436,7 @@ function EditGunplaPage() {
                           step="1"
                           value={form.purchaseCount}
                           onChange={(event) => setField('purchaseCount', event.target.value)}
-                          placeholder="购入数量"
+                          placeholder="购买数量"
                           className={inputClass}
                         />
                         <select
@@ -432,11 +464,11 @@ function EditGunplaPage() {
                   </div>
                 </section>
 
-                <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+                <section className={mediaGridClass}>
                   <div className={sectionClass}>
                     <div className="mb-4">
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Notes</div>
-                      <h4 className="mt-1 text-base font-semibold text-white">标签与备注</h4>
+                      <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">Notes</div>
+                      <h4 className="mt-1 text-base font-semibold theme-text-primary">标签与备注</h4>
                     </div>
                     <div className="space-y-4">
                       <input
@@ -457,10 +489,21 @@ function EditGunplaPage() {
 
                   <div className={sectionClass}>
                     <div className="mb-4">
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Cover</div>
-                      <h4 className="mt-1 text-base font-semibold text-white">封面主图</h4>
+                      <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">Cover</div>
+                      <h4 className="mt-1 text-base font-semibold theme-text-primary">封面主图</h4>
                     </div>
                     <div className="space-y-3">
+                      <select
+                        value={coverProviderHint}
+                        onChange={(event) => setCoverProviderHint(event.target.value)}
+                        className={inputClass}
+                      >
+                        {COVER_PROVIDER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -476,7 +519,7 @@ function EditGunplaPage() {
                         <button
                           type="button"
                           onClick={handleLookupCoverImage}
-                          disabled={coverImageLookupBusy || !window.api?.fetchGunplaCoverImage}
+                          disabled={coverImageLookupBusy || !window.api?.searchGunplaCoverImages}
                           className="app-btn-secondary !rounded-full !px-4 !py-2 !text-xs"
                         >
                           {coverImageLookupBusy ? '获取中...' : '联网获取盒绘'}
@@ -488,17 +531,13 @@ function EditGunplaPage() {
                         accept="image/*"
                         onChange={handleCoverUpload}
                         disabled={!window.api?.saveImage}
-                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                        className="app-file-input"
                       />
-                      <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60">
+                      <div className="theme-surface-elevated overflow-hidden rounded-[24px] border theme-border">
                         {form.coverImage ? (
-                          <img
-                            src={form.coverImage}
-                            alt="封面预览"
-                            className="h-56 w-full object-contain"
-                          />
+                          <img src={form.coverImage} alt="封面预览" className="h-56 w-full object-contain" />
                         ) : (
-                          <div className="flex h-56 items-center justify-center text-sm text-slate-500">
+                          <div className="flex h-56 items-center justify-center text-sm theme-text-muted">
                             暂无封面
                           </div>
                         )}
@@ -509,15 +548,15 @@ function EditGunplaPage() {
 
                 <section className={sectionClass}>
                   <div className="mb-4">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Gallery</div>
-                    <h4 className="mt-1 text-base font-semibold text-white">附加图片</h4>
+                    <div className="text-[11px] uppercase tracking-[0.24em] theme-text-muted">Gallery</div>
+                    <h4 className="mt-1 text-base font-semibold theme-text-primary">附加图片</h4>
                   </div>
 
                   <div className="grid gap-5 xl:grid-cols-2">
                     <div className="space-y-3">
                       <div>
-                        <div className="text-sm font-medium text-slate-100">成品图</div>
-                        <div className="text-xs text-slate-500">可以上传多张，用来展示完成状态。</div>
+                        <div className="text-sm font-medium theme-text-primary">成品图</div>
+                        <div className="text-xs theme-text-muted">可以上传多张，用来展示完成状态。</div>
                       </div>
                       <input
                         ref={buildInputRef}
@@ -526,7 +565,7 @@ function EditGunplaPage() {
                         accept="image/*"
                         onChange={(event) => handleMultiUpload('buildImages', event.target.files)}
                         disabled={!window.api?.saveImage}
-                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                        className="app-file-input"
                       />
                       <ImageGrid
                         images={form.buildImages}
@@ -536,8 +575,8 @@ function EditGunplaPage() {
 
                     <div className="space-y-3">
                       <div>
-                        <div className="text-sm font-medium text-slate-100">盒照</div>
-                        <div className="text-xs text-slate-500">保留包装图，方便版本核对和收纳管理。</div>
+                        <div className="text-sm font-medium theme-text-primary">盒照</div>
+                        <div className="text-xs theme-text-muted">保留包装图，方便版本核对和收纳管理。</div>
                       </div>
                       <input
                         ref={boxInputRef}
@@ -546,7 +585,7 @@ function EditGunplaPage() {
                         accept="image/*"
                         onChange={(event) => handleMultiUpload('boxImages', event.target.files)}
                         disabled={!window.api?.saveImage}
-                        className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-100 hover:file:bg-slate-600 disabled:opacity-50"
+                        className="app-file-input"
                       />
                       <ImageGrid
                         images={form.boxImages}
@@ -558,7 +597,7 @@ function EditGunplaPage() {
               </div>
             </div>
 
-            <div className="border-t border-white/10 px-5 py-4">
+            <div className="border-t theme-border px-5 py-4">
               <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" onClick={() => navigate('/')} className="app-btn-secondary">
                   取消
@@ -571,6 +610,17 @@ function EditGunplaPage() {
           </form>
         </div>
       </div>
+
+      <CoverCandidatePicker
+        open={isCoverCandidateOpen}
+        candidates={coverCandidates}
+        loading={coverCandidateSaveBusy}
+        onClose={() => {
+          if (coverCandidateSaveBusy) return
+          setIsCoverCandidateOpen(false)
+        }}
+        onConfirm={handleConfirmCoverCandidate}
+      />
     </main>
   )
 }

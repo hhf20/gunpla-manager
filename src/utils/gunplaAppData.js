@@ -1,4 +1,4 @@
-import { addNode, flattenLabels, fromFlatList, sanitizeTree } from './configTree'
+import { addNode, flattenLabels, fromFlatList, sanitizeTree } from './configTree.js'
 
 export const DEFAULT_CATEGORY_CONFIG = {
   grade: ['HG', 'RG', 'MG', 'PG', 'RE100'],
@@ -25,12 +25,39 @@ export const UI_INITIAL_STATE = {
   showGradeLogo: true,
   showSeriesLogo: true,
   sidebarWidth: 288,
+  headerCollapsed: false,
+  sidebarCollapsed: false,
 }
 
 export const DEFAULT_THEME = {
+  preset: 'hangar',
+  desktopStyleId: 'legacy',
   backgroundImage: '',
   backgroundOpacity: 0.35,
 }
+
+const DESKTOP_STYLE_IDS = new Set(['legacy', 'showcase'])
+
+export const THEME_PRESETS = [
+  {
+    id: 'hangar',
+    label: '红韵唱片',
+    description: '浅色内容底盘配合红色强调，更接近音乐客户端的清爽桌面体验。',
+    swatches: ['#F5F5F7', '#FFFFFF', '#ECECEF', '#D33A31'],
+  },
+  {
+    id: 'gallery',
+    label: '暖白展柜',
+    description: '更柔和的展柜质感，适合想保留浅色但弱化品牌红的场景。',
+    swatches: ['#FBFAF8', '#FFFFFF', '#EFE7DC', '#B76B31'],
+  },
+  {
+    id: 'tactical',
+    label: '工业战术',
+    description: '硬朗工业感与战术警示点缀并存，强调结构感、工具感和力量感。',
+    swatches: ['#1A1A1A', '#333333', '#4F5F3D', '#FF6B00'],
+  },
+]
 
 export const DEFAULT_CONFIG_TREE = {
   grade: fromFlatList(DEFAULT_CATEGORY_CONFIG.grade),
@@ -53,10 +80,159 @@ export const DEFAULT_DATA = {
   manualRootPath: '',
 }
 
+export const DEFAULT_PRICE_TREND = {
+  enabled: true,
+  benchmarkPrice: 0,
+  taxIncludedPrice: 0,
+  releaseYear: '',
+  reissueMonth: '',
+  targetPrice: 0,
+  channels: [
+    { id: 'pdd', label: 'PDD', price: 0 },
+    { id: 'xianyu', label: '海鲜市场', price: 0 },
+    { id: 'tb', label: 'TB', price: 0 },
+  ],
+  history: [],
+}
+
+function normalizePriceHistory(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((entry) => ({
+      date: typeof entry?.date === 'string' ? entry.date : '',
+      price: Number(entry?.price) || 0,
+      provider: typeof entry?.provider === 'string' ? entry.provider : '',
+      sourceUrl: typeof entry?.sourceUrl === 'string' ? entry.sourceUrl : '',
+      sampledAt: typeof entry?.sampledAt === 'string' ? entry.sampledAt : '',
+    }))
+    .filter((entry) => entry.date && entry.price > 0)
+    .slice(-30)
+}
+
+function normalizePriceTrendChannels(list) {
+  const source = Array.isArray(list) && list.length > 0 ? list : DEFAULT_PRICE_TREND.channels
+  return source.slice(0, 3).map((channel, index) => ({
+    id:
+      typeof channel?.id === 'string' && channel.id.trim()
+        ? channel.id.trim()
+        : DEFAULT_PRICE_TREND.channels[index]?.id || `channel-${index + 1}`,
+    label:
+      typeof channel?.label === 'string' && channel.label.trim()
+        ? channel.label.trim()
+        : DEFAULT_PRICE_TREND.channels[index]?.label || `渠道 ${index + 1}`,
+    price: Number(channel?.price) || 0,
+  }))
+}
+
+function normalizePriceTrendHistory(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((entry, index) => {
+      const channels = Array.isArray(entry?.channels)
+        ? entry.channels.map((channel) => ({
+            id: typeof channel?.id === 'string' ? channel.id : '',
+            label: typeof channel?.label === 'string' ? channel.label : '',
+            price: Number(channel?.price) || 0,
+          }))
+        : []
+
+      const average =
+        Number(entry?.averagePrice) ||
+        (() => {
+          const prices = channels.map((channel) => Number(channel.price) || 0).filter((price) => price > 0)
+          if (prices.length === 0) return 0
+          return Number((prices.reduce((sum, price) => sum + price, 0) / prices.length).toFixed(1))
+        })()
+
+      return {
+        id:
+          typeof entry?.id === 'string' && entry.id.trim()
+            ? entry.id.trim()
+            : `${entry?.recordedAt || entry?.date || 'trend'}-${index}`,
+        label:
+          typeof entry?.label === 'string' && entry.label.trim()
+            ? entry.label.trim()
+            : typeof entry?.date === 'string'
+              ? entry.date
+              : `记录 ${index + 1}`,
+        averagePrice: average,
+        recordedAt:
+          typeof entry?.recordedAt === 'string' && entry.recordedAt
+            ? entry.recordedAt
+            : typeof entry?.date === 'string'
+              ? `${entry.date}T00:00:00.000Z`
+              : '',
+        channels,
+      }
+    })
+    .filter((entry) => entry.averagePrice > 0 || entry.channels.some((channel) => channel.price > 0))
+    .slice(-12)
+}
+
+export function normalizePriceTrendState(rawTrend, item = null) {
+  if (rawTrend && typeof rawTrend === 'object') {
+    return {
+      enabled: rawTrend.enabled !== false,
+      benchmarkPrice: Number(rawTrend.benchmarkPrice) || 0,
+      taxIncludedPrice: Number(rawTrend.taxIncludedPrice) || 0,
+      targetPrice: Number(rawTrend.targetPrice) || 0,
+      releaseYear:
+        typeof rawTrend.releaseYear === 'string'
+          ? rawTrend.releaseYear
+          : rawTrend.releaseYear != null
+            ? String(rawTrend.releaseYear)
+            : '',
+      reissueMonth:
+        typeof rawTrend.reissueMonth === 'string'
+          ? rawTrend.reissueMonth
+          : rawTrend.reissueMonth != null
+            ? String(rawTrend.reissueMonth)
+            : '',
+      channels: normalizePriceTrendChannels(rawTrend.channels),
+      history: normalizePriceTrendHistory(rawTrend.history),
+    }
+  }
+
+  const legacyHistory = normalizePriceHistory(item?.priceHistory)
+  return {
+    ...DEFAULT_PRICE_TREND,
+    enabled: true,
+    channels: normalizePriceTrendChannels(
+      DEFAULT_PRICE_TREND.channels.map((channel, index) => ({
+        ...channel,
+        price: index === 0 ? Number(item?.currentPrice) || 0 : 0,
+      })),
+    ),
+    history: normalizePriceTrendHistory(
+      legacyHistory.map((entry) => ({
+        id: entry.date,
+        label: entry.date,
+        averagePrice: entry.price,
+        recordedAt: entry.sampledAt || `${entry.date}T00:00:00.000Z`,
+        channels: [
+          {
+            id: 'legacy',
+            label: entry.provider || '历史价格',
+            price: entry.price,
+          },
+        ],
+      })),
+    ),
+  }
+}
+
 export function parseTheme(theme) {
   if (!theme || typeof theme !== 'object') return { ...DEFAULT_THEME }
   const opacity = Number(theme.backgroundOpacity)
+  const preset = THEME_PRESETS.some((item) => item.id === theme.preset)
+    ? theme.preset
+    : DEFAULT_THEME.preset
+  const desktopStyleId = DESKTOP_STYLE_IDS.has(theme.desktopStyleId)
+    ? theme.desktopStyleId
+    : DEFAULT_THEME.desktopStyleId
   return {
+    preset,
+    desktopStyleId,
     backgroundImage: typeof theme.backgroundImage === 'string' ? theme.backgroundImage : '',
     backgroundOpacity: Number.isFinite(opacity)
       ? Math.min(1, Math.max(0, opacity))
@@ -138,31 +314,59 @@ export function parseUiState(parsed) {
     ? Math.min(420, Math.max(248, sidebarWidthRaw))
     : UI_INITIAL_STATE.sidebarWidth
 
-  return { cardDensity, showGradeLogo, showSeriesLogo, sidebarWidth }
+  const headerCollapsed =
+    typeof parsed?.headerCollapsed === 'boolean'
+      ? parsed.headerCollapsed
+      : UI_INITIAL_STATE.headerCollapsed
+  const sidebarCollapsed =
+    typeof parsed?.sidebarCollapsed === 'boolean'
+      ? parsed.sidebarCollapsed
+      : UI_INITIAL_STATE.sidebarCollapsed
+
+  return {
+    cardDensity,
+    showGradeLogo,
+    showSeriesLogo,
+    sidebarWidth,
+    headerCollapsed,
+    sidebarCollapsed,
+  }
 }
 
 export function normalizeStoredItem(item) {
   return {
     ...item,
-    type: item.type === 'wishlist' ? 'wishlist' : 'owned',
-    purchaseCount: Number.isFinite(Number(item.purchaseCount))
+    type: item?.type === 'wishlist' ? 'wishlist' : 'owned',
+    purchaseCount: Number.isFinite(Number(item?.purchaseCount))
       ? Math.max(1, Number(item.purchaseCount))
       : 1,
-    tags: Array.isArray(item.tags) ? item.tags : [],
-    buildImages: Array.isArray(item.buildImages) ? item.buildImages : [],
-    boxImages: Array.isArray(item.boxImages) ? item.boxImages : [],
-    coverImage: item.coverImage || item.image || '',
-    name: item.name || '',
-    modelCode: item.modelCode || '',
-    boxNumber: item.boxNumber || '',
-    scale: item.scale || '1/144',
-    grade: item.grade || '',
-    series: item.series || '',
-    releasePrice: item.releasePrice || 0,
-    reissuePrice: item.reissuePrice || 0,
-    releaseType: item.releaseType || '通贩',
-    purchasePlatform: item.purchasePlatform || '',
-    buildStatus: item.buildStatus || '未开盒',
+    tags: Array.isArray(item?.tags) ? item.tags : [],
+    buildImages: Array.isArray(item?.buildImages) ? item.buildImages : [],
+    boxImages: Array.isArray(item?.boxImages) ? item.boxImages : [],
+    coverImage: item?.coverImage || item?.image || '',
+    name: item?.name || '',
+    modelCode: item?.modelCode || '',
+    boxNumber: item?.boxNumber || '',
+    scale: item?.scale || '',
+    grade: item?.grade || '',
+    series: item?.series || '',
+    releasePrice: Number(item?.releasePrice) || 0,
+    reissuePrice: Number(item?.reissuePrice) || 0,
+    releaseType: item?.releaseType || '通贩',
+    purchasePlatform: item?.purchasePlatform || '',
+    buildStatus: item?.buildStatus || '未开盒',
+    purchasePrice: Number(item?.purchasePrice) || 0,
+    expectedPrice: Number(item?.expectedPrice) || 0,
+    currentPrice: Number(item?.currentPrice) || 0,
+    status: item?.status || '',
+    note: item?.note || '',
+    priceHistory: normalizePriceHistory(item?.priceHistory),
+    lastPriceSyncAt: typeof item?.lastPriceSyncAt === 'string' ? item.lastPriceSyncAt : '',
+    lastPriceProvider:
+      typeof item?.lastPriceProvider === 'string' ? item.lastPriceProvider : '',
+    lastPriceSourceUrl:
+      typeof item?.lastPriceSourceUrl === 'string' ? item.lastPriceSourceUrl : '',
+    priceTrend: normalizePriceTrendState(item?.priceTrend, item),
   }
 }
 

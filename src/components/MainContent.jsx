@@ -1,8 +1,19 @@
+import { useEffect, useRef } from 'react'
 import GunplaCard from './GunplaCard'
 import { useGunpla } from '../context/GunplaContext'
+import {
+  DESKTOP_MAIN_SCROLL_ID,
+  DESKTOP_MAIN_SCROLL_KEY,
+  restoreDesktopMainScrollPosition,
+} from '../utils/desktopScroll'
+
+const MAIN_SCROLL_ID = DESKTOP_MAIN_SCROLL_ID
+const MAIN_SCROLL_KEY = DESKTOP_MAIN_SCROLL_KEY
 
 function MainContent({ items }) {
   const { gunplaList, filterState, setFilterState, resetFilter, uiState, setUiState } = useGunpla()
+  const scrollRef = useRef(null)
+  const restoredRef = useRef(false)
 
   const ownedCount = items.filter((item) => item.type === 'owned').length
   const wishlistCount = items.filter((item) => item.type === 'wishlist').length
@@ -40,118 +51,111 @@ function MainContent({ items }) {
   const isFilteredEmpty = !isNoData && !isNoOwned && !isNoWishlist && items.length === 0
   const cardDensity = uiState?.cardDensity || 'comfortable'
 
-  const densityClass =
+  const dexGridClass =
     cardDensity === 'ultra'
-      ? 'columns-2 gap-4 md:columns-3 xl:columns-4 2xl:columns-6'
+      ? 'grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
       : cardDensity === 'compact'
-        ? 'columns-1 gap-5 md:columns-3 xl:columns-4 2xl:columns-5'
-        : 'columns-1 gap-6 md:columns-2 xl:columns-3 2xl:columns-4'
+        ? 'grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6'
+        : 'grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'
 
   const stats = [
-    { label: '已拥有', value: ownedCount, tone: 'text-cyan-100' },
-    { label: '愿望单', value: wishlistCount, tone: 'text-amber-100' },
-    { label: '已完成', value: completedCount, tone: 'text-emerald-100' },
-    { label: '累计投入', value: `¥${totalCost.toLocaleString('zh-CN')}`, tone: 'text-white' },
+    { label: '已拥有', value: ownedCount, tone: 'text-[var(--accent-strong)]' },
+    { label: '愿望单', value: wishlistCount, tone: 'text-[var(--warn)]' },
+    { label: '已完成', value: completedCount, tone: 'text-[var(--success)]' },
+    { label: '累计投入', value: `￥${totalCost.toLocaleString('zh-CN')}`, tone: 'theme-text-primary' },
   ]
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || restoredRef.current) return
+    restoredRef.current = true
+    restoreDesktopMainScrollPosition(el)
+  }, [items.length])
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    window.sessionStorage.setItem(MAIN_SCROLL_KEY, String(el.scrollTop))
+  }
 
   return (
-    <main className="flex-1 overflow-y-auto px-4 pb-5 pt-3 md:px-6 md:pb-6 md:pt-4">
-      <section className="app-panel-strong relative overflow-hidden rounded-[28px] px-5 py-5 md:px-6 md:py-5">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(103,212,255,0.14),transparent_24%),linear-gradient(110deg,rgba(255,255,255,0.03),transparent_52%)]" />
-
-        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0 space-y-3">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.34em] text-sky-100/55">
-                Collection Showcase
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">模型总览</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
-                保留一点展陈氛围，但把视线快速带回当前筛选结果和卡片内容本身。
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="min-w-[132px] rounded-2xl border border-white/10 bg-black/10 px-4 py-3"
-                >
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{stat.label}</div>
-                  <div className={`mt-2 text-xl font-semibold ${stat.tone}`}>{stat.value}</div>
-                </div>
-              ))}
-            </div>
+    <main
+      id={MAIN_SCROLL_ID}
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="app-scroll-area flex-1 overflow-y-auto px-3 pb-6 pt-2 md:px-5 md:pb-7 md:pt-3"
+    >
+      <section className="theme-surface rounded-md px-4 py-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.28em] theme-text-muted">Collection Dex</p>
+            <h2 className="mt-1 text-2xl font-semibold theme-text-primary">图鉴网格</h2>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3 self-start xl:justify-end">
-            <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">卡片密度</div>
-              <div className="mt-2 flex items-center gap-3">
-                <select
-                  value={cardDensity}
-                  onChange={(event) =>
-                    setUiState((prev) => ({
-                      ...(prev || {}),
-                      cardDensity: event.target.value,
-                    }))
-                  }
-                  className="app-input w-32 !rounded-full !py-2.5 !pr-10"
-                >
-                  <option value="comfortable">标准</option>
-                  <option value="compact">紧凑</option>
-                  <option value="ultra">超密</option>
-                </select>
-                <span className="text-xs text-slate-400">调节列表的信息密度</span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {stats.map((stat) => (
+              <div key={stat.label} className="theme-surface-soft rounded-md px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">{stat.label}</div>
+                <div className={`mt-1 text-base font-semibold ${stat.tone}`}>{stat.value}</div>
               </div>
-            </div>
+            ))}
+          </div>
+          <div className="theme-surface-soft rounded-md px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">密度</div>
+            <select
+              value={cardDensity}
+              onChange={(event) => setUiState((prev) => ({ ...(prev || {}), cardDensity: event.target.value }))}
+              className="app-input mt-1 w-24 !h-8 !rounded !py-1 !pr-7 !text-xs"
+            >
+              <option value="comfortable">标准</option>
+              <option value="compact">紧凑</option>
+              <option value="ultra">超密</option>
+            </select>
           </div>
         </div>
 
-        {filterChips.length > 0 ? (
-          <div className="relative mt-4 border-t border-white/10 pt-4">
-            <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-slate-400">当前筛选</div>
-            <div className="flex flex-wrap gap-2">
+        <div className="mt-3 border-t theme-border pt-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-[10px] uppercase tracking-[0.2em] theme-text-muted">Current Filters</div>
+            {filterChips.length > 0 ? (
+              <button onClick={resetFilter} className="app-btn-secondary !h-8 !rounded !px-3 !py-1 !text-xs">
+                清空
+              </button>
+            ) : null}
+          </div>
+          {filterChips.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
               {filterChips.map((chip) => (
-                <button key={`${chip.key}-${chip.value}`} onClick={() => removeChip(chip)} className="app-chip">
+                <button key={`${chip.key}-${chip.value}`} onClick={() => removeChip(chip)} className="app-chip !rounded !px-2 !py-1 !text-[11px]">
                   {chip.value}
-                  <span className="text-[11px] text-slate-400">移除</span>
                 </button>
               ))}
-              <button onClick={resetFilter} className="app-btn-secondary !rounded-full !px-4 !py-1.5 !text-xs">
-                清空筛选
-              </button>
             </div>
-          </div>
-        ) : null}
+          ) : (
+            <div className="text-xs theme-text-secondary">暂无附加筛选</div>
+          )}
+        </div>
       </section>
 
       {isNoData || isNoOwned || isNoWishlist || isFilteredEmpty ? (
-        <section className="app-panel mt-6 rounded-[28px] px-6 py-14 text-center">
+        <section className="mt-4 rounded-md theme-surface px-6 py-10 text-center">
           <div className="mx-auto max-w-xl">
-            <div className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Empty Showcase</div>
-            <p className="mt-4 text-2xl font-semibold text-white">
+            <div className="text-[11px] uppercase tracking-[0.32em] theme-text-muted">Empty Dex</div>
+            <p className="mt-4 text-2xl font-semibold theme-text-primary">
               {isNoData
                 ? '这里还没有任何模型，先把第一台作品放进展柜吧。'
                 : isNoWishlist
                   ? '愿望清单还是空的，可以先把想买的机体记下来。'
                   : isNoOwned
-                    ? '当前还没有已入手模型，先补充几台收藏吧。'
+                    ? '当前还没有已入手模型，先补充几台收藏。'
                     : '当前筛选条件下没有匹配到模型。'}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              {isFilteredEmpty
-                ? '你可以尝试移除一部分筛选项，或者切换到其他视图继续浏览。'
-                : '新增、导入或者调整分类后，这里会立刻刷新。'}
             </p>
           </div>
         </section>
       ) : (
-        <section className="mt-6">
-          <div className={densityClass}>
+        <section className="mt-5">
+          <div className={dexGridClass}>
             {items.map((item) => (
-              <div key={item.id} className="mb-6 break-inside-avoid">
-                <GunplaCard item={item} />
+              <div key={item.id} className="min-w-0">
+                <GunplaCard item={item} variant="dex" />
               </div>
             ))}
           </div>
