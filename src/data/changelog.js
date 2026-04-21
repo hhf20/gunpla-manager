@@ -1,9 +1,18 @@
-export const latestVersionLabel = '2.1.38'
+export const latestVersionLabel = '2.1.39'
 
 export const changelogGuide =
   '这里只展示已经正式发布到线上桌面端的版本。本地测试包、临时修复和未上线实验不会写进这里。'
 
 export const changelog = [
+  {
+    version: '2.1.39',
+    date: '2026-04-21',
+    title: '桌面端检查更新修复',
+    items: [
+      '修复桌面端“检查更新”和“立即安装”按钮调用主进程失败的问题，恢复正式客户端更新链路。',
+      '补充主进程更新日志记录，后续如果更新服务异常，可以更快定位是检查阶段还是安装阶段报错。',
+    ],
+  },
   {
     version: '2.1.38',
     date: '2026-04-21',

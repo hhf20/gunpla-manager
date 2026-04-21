@@ -509,6 +509,34 @@ ipcMain.handle('get-logs-path', async () => {
   return { ok: true, logsDir, mainLogPath, rendererLogPath }
 })
 
+ipcMain.handle('update-check', async () => {
+  if (isDev) {
+    return { ok: false, message: '开发模式不支持自动更新（请打包后测试）' }
+  }
+
+  try {
+    const res = await autoUpdater.checkForUpdates()
+    return { ok: true, updateInfo: res?.updateInfo || null }
+  } catch (err) {
+    logMain('error', `update-check failed: ${err?.message || String(err)}`)
+    return { ok: false, message: err?.message || String(err) }
+  }
+})
+
+ipcMain.handle('update-quit-and-install', async () => {
+  if (isDev) {
+    return { ok: false, message: '开发模式不支持安装更新' }
+  }
+
+  try {
+    autoUpdater.quitAndInstall()
+    return { ok: true }
+  } catch (err) {
+    logMain('error', `update-quit-and-install failed: ${err?.message || String(err)}`)
+    return { ok: false, message: err?.message || String(err) }
+  }
+})
+
 ipcMain.removeHandler('wipe-user-data')
 ipcMain.handle('wipe-user-data', async () => {
   if (isDev) {
